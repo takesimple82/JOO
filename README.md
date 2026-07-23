@@ -12,6 +12,30 @@ JOO는 단순한 뉴스 요약기가 아니라,
 Research → Knowledge → CIO Dashboard의 3단계 의사결정 파이프라인을 통해
 투자 결정을 구조화합니다.
 ---
+## Quick Start
+
+### 1. Clone Repository
+
+```bash
+git clone https://github.com/takesimple82/JOO.git
+cd JOO
+```
+
+### 2. Run JOO
+
+```bash
+./run.sh
+```
+
+JOO는 아래 순서로 자동 실행됩니다.
+
+```
+Research
+    ↓
+Knowledge
+    ↓
+CIO Dashboard
+```
 
 # Philosophy
 
