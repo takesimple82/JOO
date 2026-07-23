@@ -85,24 +85,29 @@ JOO/
 
 # Workflow
 
+```text
 run.sh
+   │
+   ▼
+research_gpt.sh
+   │
+   ▼
+Research/YYYY-MM-DD/gpt.md
+   │
+   ▼
+knowledge_gpt.sh
+   │
+   ▼
+Knowledge/YYYY-MM-DD/gpt.md
+   │
+   ▼
+cio_gpt.sh
+   │
+   ▼
+Reports/YYYY-MM-DD/cio.md
+```
 
-↓
-
-Research
-
-↓
-
-Knowledge
-
-↓
-
-CIO Dashboard
-
-↓
-
-Daily Report
-
+Each stage uses the output of the previous stage to build the final CIO Dashboard.
 ---
 
 # Output
