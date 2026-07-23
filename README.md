@@ -55,32 +55,32 @@ JOO는 CIO(Chief Investment Officer)입니다.
 
 # Project Structure
 
-```
+```text
 JOO/
-
-├── Portfolio/
+│
+├── Portfolio/          # Portfolio database & holdings
 │   ├── portfolio.yaml
 │   └── database.md
 │
-├── PromptLibrary/
+├── PromptLibrary/      # AI prompt templates
 │   ├── P001_Research.md
 │   ├── P002_Knowledge.md
 │   ├── P003_CIO.md
 │   └── P003_Daily_CIO.md
 │
-├── Scripts/
+├── Scripts/            # Automation scripts
 │   ├── research_gpt.sh
 │   ├── knowledge_gpt.sh
 │   ├── cio_gpt.sh
 │   ├── common.sh
 │   └── run.sh
 │
-├── Research/
-├── Knowledge/
-├── Reports/
-└── run.sh
+├── Research/           # Daily research output
+├── Knowledge/          # Daily knowledge output
+├── Reports/            # Final CIO reports
+│
+└── run.sh              # Entry point
 ```
-
 ---
 
 # Workflow
