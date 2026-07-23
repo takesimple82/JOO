@@ -161,12 +161,15 @@ git push
 
 # Requirements
 
-- macOS
-- Git
-- GitHub CLI
-- Bash
-- GPT CLI
+| Requirement | Purpose |
+|--------------|---------|
+| macOS | Development environment |
+| Git | Version control |
+| GitHub CLI (`gh`) | GitHub authentication and repository management |
+| Bash | Script execution |
+| GPT CLI | AI-powered research pipeline |
 
+> Future installation instructions will be documented in `INSTALL.md`.
 ---
 
 # Version
