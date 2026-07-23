@@ -1,0 +1,20 @@
+# Generated reports
+Research/
+Knowledge/
+Reports/
+Logs/
+
+# Log files
+*.log
+output.txt
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Environment
+.env
+

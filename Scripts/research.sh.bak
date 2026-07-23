@@ -1,0 +1,41 @@
+#!/bin/bash
+
+set -e
+
+cd ~/Projects/JOO
+
+mkdir -p Research
+
+DATE=$(date +%F)
+
+PROMPT_FILE=$(mktemp)
+
+cat > "$PROMPT_FILE" <<EOF
+$(cat PromptLibrary/P001_Research.md)
+
+==================================================
+
+Portfolio Database
+
+==================================================
+
+$(cat Portfolio/database.md)
+
+==================================================
+
+Current Portfolio
+
+==================================================
+
+$(cat Portfolio/portfolio.yaml)
+EOF
+
+grok --prompt-file "$PROMPT_FILE" \
+| sed -n '/^# Daily Research/,$p' \
+> "Research/$DATE.md"
+
+rm "$PROMPT_FILE"
+
+echo
+echo "Research created:"
+echo "Research/$DATE.md"

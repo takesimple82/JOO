@@ -1,0 +1,42 @@
+cash: 0
+
+holdings:
+  - ticker: SKHynix
+    shares: 10
+    average_price: 2158096
+
+  - ticker: Samsung
+    shares: 14
+    average_price: 373513
+
+  - ticker: Micron
+    shares: 14
+    average_price: 998.49
+
+  - ticker: RKLB
+    shares: 42
+    average_price: 69.32
+
+  - ticker: ASTS
+    shares: 45
+    average_price: 83.27
+
+  - ticker: FLR
+    shares: 15
+    average_price: 47.39
+
+  - ticker: FN
+    shares: 2
+    average_price: 704.30
+
+  - ticker: TSLA
+    shares: 2
+    average_price: 439.89
+
+  - ticker: SPG
+    shares: 41
+    average_price: 133570
+
+  - ticker: Rainbow
+    shares: 3
+    average_price: 719690
