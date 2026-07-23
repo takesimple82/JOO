@@ -174,6 +174,42 @@ git push
 
 # Version
 
-Current Version
+---
 
-v1.0
+# Development Roadmap
+
+## v1.0
+
+- [x] Portfolio Database
+- [x] Research Pipeline
+- [x] Knowledge Pipeline
+- [x] CIO Dashboard
+- [x] GitHub Repository
+
+---
+
+## v1.1
+
+- [ ] Automatic Portfolio Update
+- [ ] Daily Report Export
+- [ ] Better Prompt Management
+- [ ] Configuration File
+
+---
+
+## v1.2
+
+- [ ] Web Dashboard
+- [ ] Portfolio Analytics
+- [ ] Performance Tracking
+- [ ] Risk Dashboard
+
+---
+
+## v2.0
+
+- [ ] Multi-AI Research Engine
+- [ ] Backtesting Engine
+- [ ] Portfolio Optimization
+- [ ] Local Database
+- [ ] Web Interface
