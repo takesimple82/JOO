@@ -1,0 +1,35 @@
+version: "1.0"
+
+# LLM configuration
+llm:
+  provider: openai
+  model: gpt-5.5
+
+# Portfolio database
+portfolio:
+  database: Portfolio/database.md
+  holdings: Portfolio/portfolio.yaml
+
+# Prompt templates
+prompts:
+  directory: PromptLibrary
+
+  research: P001_Research.md
+  knowledge: P002_Knowledge.md
+  cio: P003_CIO.md
+  daily_cio: P003_Daily_CIO.md
+
+# Output directories
+output:
+  research: Research
+  knowledge: Knowledge
+  reports: Reports
+  logs: Logs
+
+# Script locations
+scripts:
+  directory: Scripts
+
+  research: research_gpt.sh
+  knowledge: knowledge_gpt.sh
+  cio: cio_gpt.sh
