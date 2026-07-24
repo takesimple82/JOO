@@ -169,7 +169,7 @@ git push
 | Bash | Script execution |
 | GPT CLI | AI-powered research pipeline |
 
-> Future installation instructions will be documented in `INSTALL.md`.
+For installation instructions, see **INSTALL.md**.
 ---
 
 # Version
