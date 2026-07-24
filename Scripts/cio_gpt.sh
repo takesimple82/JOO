@@ -27,11 +27,11 @@ Knowledge Report
 $(cat Knowledge/$DATE/gpt.md)
 EOF
 
-retry codex exec \
+retry_codex "$PROMPT_FILE" \
+  codex exec \
   --skip-git-repo-check \
   --ephemeral \
-  -o Reports/$DATE/cio.md \
-  < "$PROMPT_FILE"
+  -o Reports/$DATE/cio.md
 
 check_file "Reports/$DATE/cio.md"
 

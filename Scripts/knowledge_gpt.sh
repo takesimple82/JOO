@@ -25,11 +25,11 @@ Research Report
 $(cat "$RESEARCH_FILE")
 EOF
 
-retry codex exec \
+retry_codex "$PROMPT_FILE" \
+  codex exec \
   --skip-git-repo-check \
   --ephemeral \
-  -o Knowledge/$DATE/gpt.md \
-  < "$PROMPT_FILE"
+  -o Knowledge/$DATE/gpt.md
 
 rm "$PROMPT_FILE"
 

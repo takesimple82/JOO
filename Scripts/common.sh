@@ -68,3 +68,30 @@ retry() {
 
     done
 }
+
+retry_codex() {
+
+    local prompt="$1"
+    shift
+
+    local max=3
+    local delay=10
+    local attempt=1
+
+    while true; do
+
+        "$@" < "$prompt" && return 0
+
+        if [ "$attempt" -ge "$max" ]; then
+            fail "Retry failed after ${max} attempts."
+        fi
+
+        log "Attempt ${attempt}/${max} failed. Retrying in ${delay}s..."
+
+        sleep "$delay"
+
+        delay=$((delay * 2))
+        attempt=$((attempt + 1))
+
+    done
+}
