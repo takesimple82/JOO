@@ -107,6 +107,14 @@ Event ownership defines contract boundaries only and does not introduce cross-la
 
 ---
 
+## Research Versioning Layer
+
+`ResearchVersionManager` creates immutable research snapshots. Each snapshot preserves references to the portfolio, prompts, committees, execution manifest, and event chain that define the complete research environment.
+
+Research Versioning owns the reproducibility contract. Replay consumes snapshots and their references; versioning does not implement replay behavior.
+
+---
+
 ## Engineering Principles
 
 1. Evidence First
