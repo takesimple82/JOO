@@ -26,6 +26,8 @@ No other providers are included in the Stage 1 scope.
 
 - Provider name
 - Research task ID
+- Prompt ID
+- Prompt version
 - Provider response content
 - Response status
 - Error information when a response is missing or unavailable
@@ -44,7 +46,7 @@ No other providers are included in the Stage 1 scope.
 Every provider adapter inherits from `AIAdapter` and follows the same four-operation contract:
 
 - `validate_request()` validates the common request structure.
-- `execute()` submits an approved request to the provider.
+- `execute()` invokes one AI provider for an approved request.
 - `normalize_response()` converts a provider result into the common response structure.
 - `health_check()` reports whether the adapter is available.
 

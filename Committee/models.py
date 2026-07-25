@@ -14,5 +14,9 @@ class CommitteeRequest:
 class CommitteeResult:
     committee: str
     task_id: str
+    provider: str
+    prompt_id: str
+    prompt_version: str
     status: str
     summary: str
+    error: str

@@ -15,8 +15,13 @@ The Execution Engine defines the Stage 1 boundary for preparing, executing, fina
 ## Outputs
 
 - Research task ID
+- Committee name
+- AI provider name
+- Prompt ID
+- Prompt version
 - Execution status
 - Execution output
+- Execution error information
 
 ## Responsibilities
 
@@ -31,7 +36,7 @@ The Execution Engine defines the Stage 1 boundary for preparing, executing, fina
 Every implementation follows the `ExecutionEngine` interface:
 
 - `prepare()` defines the request-preparation boundary.
-- `execute()` defines the research-execution boundary.
+- `execute()` coordinates one end-to-end research execution boundary.
 - `finalize()` defines the result-finalization boundary.
 - `export()` defines the execution-output boundary.
 

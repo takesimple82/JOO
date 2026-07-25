@@ -25,19 +25,31 @@ The Committee Layer defines a consistent foundation for collecting committee res
 
 - Committee name
 - Research task ID
+- AI provider name
+- Prompt ID
+- Prompt version
 - Result status
 - Result summary
+- Error information when a provider response is missing or failed
 
 ## Committee Contract
 
 Every committee follows the `Committee` interface:
 
 - `prepare()` defines the preparation boundary.
-- `execute()` defines the execution boundary.
+- `execute()` processes committee-level research using actual provider responses.
 - `validate()` defines the validation boundary.
 - `export()` defines the output boundary.
 
 This foundation defines the contract only. It contains no committee behavior, AI provider calls, or workflow orchestration.
+
+## Committee First Protocol
+
+- Committee results must be based on actual provider responses.
+- Missing or failed provider responses must remain explicit.
+- Missing provider output must not be simulated.
+- Failed providers must not be silently substituted.
+- CIO synthesis must not occur before required committee results are available or explicitly marked failed or missing.
 
 ## Supported Committees
 
