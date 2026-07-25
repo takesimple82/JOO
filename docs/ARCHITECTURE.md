@@ -40,6 +40,38 @@ Future Event Database
 
 ---
 
+## Authoritative Stage 1 Dependency Map
+
+```text
+Portfolio Database ──┐
+                     ├──→ Research Planner
+Prompt Library ──────┘
+                              ↓
+                       Research Queue
+                              ↓
+                      Execution Engine
+                        ├── AI Adapter
+                        └── Committee
+                              ↓
+                     Research Logging
+                              ↓
+                    Research Versioning
+                              ↓
+                      Research Replay
+```
+
+- Prompt Library and Portfolio Database are planning inputs.
+- Execution Engine owns the end-to-end orchestration boundary.
+- AI Adapter owns one provider invocation.
+- Committee owns committee-level aggregation.
+- Research Logging records execution facts.
+- Research Versioning preserves reproducibility references.
+- Research Replay is read-only and does not execute research.
+
+This map defines dependency and ownership boundaries only. It does not implement orchestration.
+
+---
+
 ## Canonical Identity Contract
 
 Stage 1 uses these canonical identity fields:
@@ -125,6 +157,18 @@ Research Versioning owns the reproducibility contract. Replay consumes snapshots
 - Committee Results
 
 Replay reconstructs historical research only. It owns reproducibility verification and does not own execution. Replay is read-only and does not create provider or committee output.
+
+---
+
+## Shared Timestamp Contract
+
+All `*_at` fields use UTC ISO 8601 timestamps unless a future contract explicitly states otherwise.
+
+```text
+2026-07-25T12:34:56Z
+```
+
+Timestamp generation and validation are outside this architecture contract.
 
 ---
 

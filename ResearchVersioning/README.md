@@ -9,6 +9,7 @@ The Research Versioning layer defines immutable snapshot contracts for reproduci
 - Research task identity
 - Execution identity
 - Portfolio version
+- Prompt ID
 - Prompt version
 - Committee version
 - Event manifest reference
@@ -46,7 +47,7 @@ The execution reference connects the snapshot to its execution manifest. The eve
 
 ## Version Contract
 
-Each snapshot records the portfolio, prompt, and committee versions applicable to its execution. A snapshot is immutable after creation; a changed research environment requires a distinct snapshot. Version generation and integrity verification are outside this foundation.
+Each snapshot records the portfolio, prompt, and committee versions applicable to its execution. Prompt versions are scoped to a logical prompt identity, so `prompt_id` and `prompt_version` remain paired in both snapshots and version manifests. A snapshot is immutable after creation; a changed research environment requires a distinct snapshot. Version generation and integrity verification are outside this foundation.
 
 ## Identity Contract
 

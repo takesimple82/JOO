@@ -18,6 +18,7 @@ The Research Logging layer defines the Stage 1 contract for recording research e
 
 - `ResearchEvent` records
 - `ExecutionManifest` records
+- `SourceReference` records
 - Export-ready event and execution representations
 
 ## Responsibilities
@@ -26,6 +27,7 @@ The Research Logging layer defines the Stage 1 contract for recording research e
 - Preserve canonical identity across research events.
 - Record events owned by execution, provider, and committee layers.
 - Preserve failed and missing outcomes explicitly.
+- Preserve source provenance independently from provider interpretation.
 - Expose foundation boundaries for appending, finalizing, and exporting records.
 
 ## Logging Contract
@@ -91,6 +93,17 @@ Lifecycle transitions and status validation are not implemented in this foundati
 ## Committee First Protocol
 
 Committee events and results must be based on actual provider responses. Required responses must be available or explicitly marked failed or missing before committee completion can be treated as successful. Missing providers must not be silently substituted, predicted, invented, or simulated.
+
+## Source Provenance Contract
+
+Research outputs may reference one or more `SourceReference` records. Source provenance is preserved independently from provider interpretation.
+
+- `event_date` records when the underlying event occurred.
+- `publication_date` records when the source was published.
+- These dates are distinct and must not be substituted for one another.
+- Unverified sources remain explicit through `verification_status`.
+
+This foundation does not fetch or verify sources and contains no network or parsing behavior.
 
 ## Future Expansion
 

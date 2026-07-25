@@ -11,8 +11,12 @@ class PortfolioItem:
 @dataclass
 class ResearchTask:
     task_id: str
+    priority: int
     portfolio_entity: str
     portfolio_relevance: str
+    committee_required: list[str]
+    prompt_id: str
+    prompt_version: str
     status: str
 
 

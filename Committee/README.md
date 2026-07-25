@@ -31,6 +31,7 @@ The Committee Layer defines a consistent foundation for collecting committee res
 - Result status
 - Result summary
 - Error information when a provider response is missing or failed
+- Committee aggregate completeness
 
 ## Committee Contract
 
@@ -42,6 +43,20 @@ Every committee follows the `Committee` interface:
 - `export()` defines the output boundary.
 
 This foundation defines the contract only. It contains no committee behavior, AI provider calls, or workflow orchestration.
+
+## Committee Completeness Aggregate
+
+`CommitteeAggregate` preserves committee completeness without calculating it:
+
+- `required_providers` identifies the expected provider set.
+- `completed_providers` preserves successful responses.
+- `failed_providers` preserves explicit failures.
+- `missing_providers` preserves absent responses.
+- `status` represents aggregate completeness.
+
+The four provider-group fields are provider collections, and each uses `list[str]`. No string parsing or serialization convention is required. `failed_providers` and `missing_providers` remain distinct.
+
+Failed or missing providers must never be treated as completed. Provider output must never be simulated. Completeness calculation is not implemented in this foundation.
 
 ## Committee First Protocol
 

@@ -106,3 +106,31 @@ Stage 1 timestamps use UTC ISO 8601 format:
 ```
 
 Timestamp generation is outside the Stage 1 logging foundation.
+
+### SourceReference
+
+Research outputs may reference one or more `SourceReference` records.
+
+| Field | Type | Semantics |
+| --- | --- | --- |
+| `source_id` | string | Identifies the source reference. |
+| `source_type` | string | Identifies the source category. |
+| `source_uri` | string | Preserves the source location reference. |
+| `title` | string | Preserves the source title. |
+| `publisher` | string | Preserves the source publisher. |
+| `event_date` | string | Records when the underlying event occurred. |
+| `publication_date` | string | Records when the source was published. |
+| `retrieved_at` | string | Records when the source reference was retrieved. |
+| `verification_status` | string | Preserves whether the source is verified or remains unverified. |
+
+Source provenance is preserved independently from provider interpretation. Event date and publication date are distinct. Unverified sources remain explicit. No source fetching or verification is implemented by this contract.
+
+### Shared Timestamp Contract
+
+All `*_at` fields use UTC ISO 8601 timestamps unless a future contract explicitly states otherwise.
+
+```text
+2026-07-25T12:34:56Z
+```
+
+This contract does not implement timestamp generation or validation.

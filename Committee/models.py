@@ -20,3 +20,14 @@ class CommitteeResult:
     status: str
     summary: str
     error: str
+
+
+@dataclass
+class CommitteeAggregate:
+    task_id: str
+    committee: str
+    required_providers: list[str]
+    completed_providers: list[str]
+    failed_providers: list[str]
+    missing_providers: list[str]
+    status: str

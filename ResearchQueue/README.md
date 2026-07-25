@@ -41,6 +41,22 @@ Every queue implementation follows the `ResearchQueue` interface:
 
 A queue task carries its identity, priority, portfolio context, committee requirements, prompt reference, lifecycle status, and timestamps. This foundation defines the contract only and contains no persistence, execution, scheduling, or validation behavior.
 
+## Planner-to-Queue Contract
+
+`QueueTask` receives the authoritative planning fields from `ResearchTask`:
+
+| `ResearchTask` | `QueueTask` | Contract |
+| --- | --- | --- |
+| `task_id` | `task_id` | Preserve the planned task identity. |
+| `prompt_id` | `prompt_id` | Preserve the logical prompt identity. |
+| `prompt_version` | `prompt_version` | Preserve the selected prompt revision. |
+| `committee_required` | `committee_required` | Preserve the committee requirements. |
+| `priority` | `priority` | Preserve the numeric task priority. |
+
+`ResearchTask` and `QueueTask` preserve the same shared-field types. In both models, `committee_required` is `list[str]`, so no string parsing or conversion is required.
+
+Field mapping must be explicit by name. Positional construction must not be relied upon for planner-to-queue conversion. No conversion or queue-processing behavior is implemented by this contract.
+
 ## Queue Status Lifecycle
 
 Stage 1 defines these status values:
