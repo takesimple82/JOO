@@ -29,11 +29,11 @@ Current Portfolio
 $(cat Portfolio/portfolio.yaml)
 EOF
 
-retry codex exec \
+retry_codex "$PROMPT_FILE" \
+  codex exec \
   --skip-git-repo-check \
   --ephemeral \
-  -o Research/$DATE/gpt.md \
-  < "$PROMPT_FILE"
+  -o Research/$DATE/gpt.md
 
 rm "$PROMPT_FILE"
 
