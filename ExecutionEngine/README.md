@@ -2,57 +2,58 @@
 
 ## Purpose
 
-The Execution Engine defines the Stage 1 boundary for preparing, executing, finalizing, and exporting a single research execution. This foundation provides a common interface and data models without implementing execution behavior.
+The Execution Engine owns the synchronous Stage 2 boundary for resolving one configured provider adapter and executing one `AIRequest` exactly once.
 
 ## Inputs
 
-- Research task ID
-- Committee name
-- AI provider name
-- Prompt ID
-- Prompt version
+- One `AIRequest`
+- Explicitly configured `AIAdapter` instances
 
 ## Outputs
 
-- Research task ID
-- Committee name
-- AI provider name
-- Prompt ID
-- Prompt version
-- Execution status
-- Execution output
-- Execution error information
+- One valid `AIResponse`
 
 ## Responsibilities
 
-- Define the preparation boundary for a research execution.
-- Define the execution boundary for an approved request.
-- Define the finalization boundary for an execution result.
-- Preserve task, committee, provider, and prompt identity.
-- Export execution results through a consistent interface.
+- Own an instance-local provider adapter registry.
+- Resolve providers case-insensitively.
+- Execute one resolved adapter exactly once.
+- Preserve valid adapter responses unchanged.
+- Normalize unsupported providers, invalid adapter responses, and unexpected adapter exceptions into failed responses.
 
 ## Execution Contract
 
-Every implementation follows the `ExecutionEngine` interface:
+`ExecutionEngine.execute(request)` accepts one `AIRequest` and returns one `AIResponse`. It does not mutate the request.
 
-- `prepare()` defines the request-preparation boundary.
-- `execute()` coordinates one end-to-end research execution boundary.
-- `finalize()` defines the result-finalization boundary.
-- `export()` defines the execution-output boundary.
+Configured adapters are injected during engine construction or registered explicitly. ExecutionEngine does not instantiate provider adapters, load credentials, import provider SDKs, or construct provider requests.
 
-This foundation defines the contract only. It contains no scheduling, queue execution, retries, provider APIs, committee orchestration, persistence, or validation behavior.
+If an adapter unexpectedly raises, the engine returns a failed response containing only a stable diagnostic and the exception type. If an adapter returns a non-`AIResponse`, the engine returns a failed response without interpreting that object.
 
-## Execution Lifecycle
+Objects that are not `AIRequest` raise `TypeError` before provider resolution. Non-string identity fields also raise `TypeError` because the `AIResponse` contract cannot safely preserve them. Blank string fields, including whitespace-only strings, produce a failed `AIResponse`.
 
-Stage 1 defines these execution lifecycle states:
+## Adapter Registry
 
-- `prepared`
-- `executing`
-- `completed`
-- `failed`
+- Registry state belongs to one engine instance.
+- Provider lookup is case-insensitive.
+- Duplicate provider registration is rejected.
+- Blank provider identifiers are rejected.
+- Only concrete `AIAdapter` instances may be registered.
+- No global registry, plugin discovery, or provider auto-construction is used.
 
-Lifecycle behavior and state transitions are not implemented in this foundation.
+## M12 Scope
 
-## Future Expansion
+M12 is synchronous and executes one request only.
 
-Future approved tasks may define method signatures, execution behavior, lifecycle transitions, result formats, and integration boundaries. Scheduling, retries, persistence, and orchestration require separate approved scope.
+The Stage 1 `prepare()`, `finalize()`, and `export()` methods remain intentionally unimplemented in M12 and raise `NotImplementedError`.
+
+It does not implement:
+
+- Retries
+- Committee orchestration
+- Parallelism or batch execution
+- Queue processing
+- Persistence
+- Logging runtime or event emission
+- Replay or versioning runtime
+- Scheduling
+- Provider fallback, priority, or load balancing
