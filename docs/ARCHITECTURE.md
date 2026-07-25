@@ -115,6 +115,19 @@ Research Versioning owns the reproducibility contract. Replay consumes snapshots
 
 ---
 
+## Research Replay Layer
+
+`ResearchReplay` consumes:
+
+- Research Snapshot
+- Execution Manifest
+- Research Events
+- Committee Results
+
+Replay reconstructs historical research only. It owns reproducibility verification and does not own execution. Replay is read-only and does not create provider or committee output.
+
+---
+
 ## Engineering Principles
 
 1. Evidence First
