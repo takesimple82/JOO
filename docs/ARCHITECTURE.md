@@ -76,6 +76,37 @@ AI provider, committee, and execution results preserve the applicable canonical 
 
 ---
 
+## Research Logging Layer
+
+The Research Logging layer defines research event and execution-manifest contracts. It records events supplied by the owning execution, provider, and committee layers without determining business outcomes or implementing cross-layer orchestration.
+
+---
+
+## Execution Correlation
+
+Stage 1 correlates events through this identity hierarchy:
+
+```text
+task_id
+→ execution_id
+→ event_id
+```
+
+`task_id` identifies a planned research task, `execution_id` identifies one attempt of that task, and `event_id` identifies one event within that attempt. Applicable provider, committee, and prompt identity remains attached to correlated events.
+
+---
+
+## Event Ownership
+
+- ExecutionEngine owns execution-level events.
+- AIAdapter owns provider-level events.
+- Committee owns committee-level events.
+- ResearchLogger records events but does not determine business outcomes.
+
+Event ownership defines contract boundaries only and does not introduce cross-layer orchestration.
+
+---
+
 ## Engineering Principles
 
 1. Evidence First
