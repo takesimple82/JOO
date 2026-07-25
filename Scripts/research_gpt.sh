@@ -43,3 +43,4 @@ echo "Research/$DATE/gpt.md"
 
 check_file "Research/$DATE/gpt.md"
 success "Research Complete"
+"$ROOT/Scripts/event_log.sh" research gpt completed "Research completed"
