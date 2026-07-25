@@ -14,6 +14,8 @@ The AI Adapter Layer defines a consistent boundary between the JOO Research Laye
 
 No other providers are included in the Stage 1 scope.
 
+ChatGPT remains a Stage 1 contract placeholder. The M11 provider runtime implements Claude, Gemini, Grok, and Perplexity only.
+
 ## Inputs
 
 - Provider name
@@ -50,7 +52,22 @@ Every provider adapter inherits from `AIAdapter` and follows the same four-opera
 - `normalize_response()` converts a provider result into the common response structure.
 - `health_check()` reports whether the adapter is available.
 
-The foundation defines interfaces only. It contains no API clients or provider execution behavior.
+The base adapter owns request validation, successful and failed response construction, and non-secret exception normalization. Each provider adapter owns its request construction, provider client invocation, and response text extraction.
+
+## Stage 2 Provider Runtime
+
+| Provider | Runtime | Required configuration | Optional package |
+| --- | --- | --- | --- |
+| Claude | Anthropic client | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | `anthropic` |
+| Gemini | Google Gen AI client | `GEMINI_API_KEY`, `GEMINI_MODEL` | `google-genai` |
+| Grok | Standard-library HTTP transport | `XAI_API_KEY`, `XAI_MODEL` | None |
+| Perplexity | Standard-library HTTP transport | `PERPLEXITY_API_KEY`, `PERPLEXITY_MODEL` | None |
+
+Provider clients and HTTP transports may be supplied directly for testing or configuration. The adapter never accepts a generic `AIRequest`-to-string invocation callable.
+
+Optional SDK imports are isolated inside their provider modules. If a required key, model, or optional SDK is unavailable, the adapter returns a failed `AIResponse` with a stable diagnostic. Credential values are never included in response errors.
+
+Health checks verify local client and configuration availability only. They do not make billable completion requests.
 
 ## Future Expansion
 
