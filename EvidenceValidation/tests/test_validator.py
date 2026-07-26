@@ -85,13 +85,18 @@ class EvidenceValidatorTests(unittest.TestCase):
         self.assertEqual(result.issues, ())
         self.assertEqual(vars(finding), original)
 
-    def test_domain_validation_runs_before_result_construction(self):
+    def test_domain_validation_runs_before_date_validation(self):
         finding = make_finding()
         call_order = []
 
         def validate(value):
             self.assertIs(value, finding)
             call_order.append("domain")
+
+        def collect(value):
+            self.assertIs(value, finding)
+            call_order.append("dates")
+            return ()
 
         def build_result(*args, **kwargs):
             call_order.append("result")
@@ -104,13 +109,17 @@ class EvidenceValidatorTests(unittest.TestCase):
             ),
             side_effect=validate,
         ) as domain_validator, patch(
+            "EvidenceValidation.validator._collect_date_issues",
+            side_effect=collect,
+        ) as date_validator, patch(
             "EvidenceValidation.validator.EvidenceValidationResult",
             side_effect=build_result,
         ) as result_constructor:
             result = EvidenceValidator().validate(finding)
 
-        self.assertEqual(call_order, ["domain", "result"])
+        self.assertEqual(call_order, ["domain", "dates", "result"])
         domain_validator.assert_called_once_with(finding)
+        date_validator.assert_called_once_with(finding)
         result_constructor.assert_called_once_with(
             valid=True,
             issues=(),
@@ -131,7 +140,11 @@ class EvidenceValidatorTests(unittest.TestCase):
                 "validate_research_finding"
             ),
             side_effect=error,
-        ) as domain_validator:
+        ) as domain_validator, patch(
+            "EvidenceValidation.validator._collect_date_issues",
+        ) as date_validator, patch(
+            "EvidenceValidation.validator.EvidenceValidationResult",
+        ) as result_constructor:
             try:
                 result = EvidenceValidator().validate(finding)
             except ValueError as caught:
@@ -141,6 +154,8 @@ class EvidenceValidatorTests(unittest.TestCase):
 
         self.assertIsNone(result)
         domain_validator.assert_called_once_with(finding)
+        date_validator.assert_not_called()
+        result_constructor.assert_not_called()
 
     def test_models_are_frozen_and_hashable(self):
         issue = EvidenceValidationIssue(
@@ -171,6 +186,200 @@ class EvidenceValidatorTests(unittest.TestCase):
                 valid=True,
                 issues=[],
             )
+
+    def test_leap_year_date_is_accepted(self):
+        finding = self._finding_with(
+            event_date="2024-02-29",
+            publication_date="2024-02-29",
+        )
+
+        result = EvidenceValidator().validate(finding)
+
+        self.assertIs(result.valid, True)
+        self.assertEqual(result.issues, ())
+
+    def test_invalid_event_date_produces_exact_issue(self):
+        finding = self._finding_with(event_date="2026/07/01")
+
+        result = EvidenceValidator().validate(finding)
+
+        self.assertEqual(
+            result,
+            EvidenceValidationResult(
+                valid=False,
+                issues=(
+                    EvidenceValidationIssue(
+                        code="INVALID_EVENT_DATE",
+                        message=(
+                            "event_date must be a valid "
+                            "YYYY-MM-DD date"
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+    def test_invalid_publication_date_produces_exact_issue(self):
+        finding = self._finding_with(
+            publication_date="07-15-2026"
+        )
+
+        result = EvidenceValidator().validate(finding)
+
+        self.assertEqual(
+            result,
+            EvidenceValidationResult(
+                valid=False,
+                issues=(
+                    EvidenceValidationIssue(
+                        code="INVALID_PUBLICATION_DATE",
+                        message=(
+                            "publication_date must be a valid "
+                            "YYYY-MM-DD date"
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+    def test_impossible_calendar_dates_are_rejected(self):
+        cases = (
+            ("event_date", "2026-02-30", "INVALID_EVENT_DATE"),
+            (
+                "publication_date",
+                "2026-02-30",
+                "INVALID_PUBLICATION_DATE",
+            ),
+        )
+        for field_name, value, expected_code in cases:
+            with self.subTest(field=field_name):
+                overrides = {
+                    "event_date": "2026-02-01",
+                    "publication_date": "2026-02-01",
+                }
+                overrides[field_name] = value
+                finding = self._finding_with(**overrides)
+
+                result = EvidenceValidator().validate(finding)
+
+                self.assertEqual(
+                    [issue.code for issue in result.issues],
+                    [expected_code],
+                )
+                self.assertIs(result.valid, False)
+
+    def test_non_zero_padded_dates_are_rejected(self):
+        cases = (
+            ("event_date", "2026-7-01", "INVALID_EVENT_DATE"),
+            (
+                "publication_date",
+                "2026-07-1",
+                "INVALID_PUBLICATION_DATE",
+            ),
+        )
+        for field_name, value, expected_code in cases:
+            with self.subTest(field=field_name):
+                finding = self._finding_with(
+                    **{field_name: value}
+                )
+
+                result = EvidenceValidator().validate(finding)
+
+                self.assertEqual(
+                    [issue.code for issue in result.issues],
+                    [expected_code],
+                )
+
+    def test_both_invalid_dates_collect_issues_in_order(self):
+        finding = self._finding_with(
+            event_date="invalid event",
+            publication_date="invalid publication",
+        )
+
+        result = EvidenceValidator().validate(finding)
+
+        self.assertIs(result.valid, False)
+        self.assertEqual(
+            result.issues,
+            (
+                EvidenceValidationIssue(
+                    code="INVALID_EVENT_DATE",
+                    message=(
+                        "event_date must be a valid YYYY-MM-DD date"
+                    ),
+                ),
+                EvidenceValidationIssue(
+                    code="INVALID_PUBLICATION_DATE",
+                    message=(
+                        "publication_date must be a valid "
+                        "YYYY-MM-DD date"
+                    ),
+                ),
+            ),
+        )
+
+    def test_publication_before_event_produces_exact_issue(self):
+        finding = self._finding_with(
+            event_date="2026-07-15",
+            publication_date="2026-07-14",
+        )
+
+        result = EvidenceValidator().validate(finding)
+
+        self.assertEqual(
+            result,
+            EvidenceValidationResult(
+                valid=False,
+                issues=(
+                    EvidenceValidationIssue(
+                        code="PUBLICATION_BEFORE_EVENT",
+                        message=(
+                            "publication_date must not be "
+                            "before event_date"
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+    def test_equal_dates_are_accepted(self):
+        finding = self._finding_with(
+            event_date="2026-07-15",
+            publication_date="2026-07-15",
+        )
+
+        result = EvidenceValidator().validate(finding)
+
+        self.assertIs(result.valid, True)
+        self.assertEqual(result.issues, ())
+
+    def test_publication_after_event_is_accepted(self):
+        result = EvidenceValidator().validate(make_finding())
+
+        self.assertIs(result.valid, True)
+        self.assertEqual(result.issues, ())
+
+    def test_relationship_rule_skipped_when_either_date_invalid(self):
+        cases = (
+            {"event_date": "invalid"},
+            {"publication_date": "invalid"},
+            {
+                "event_date": "invalid",
+                "publication_date": "invalid",
+            },
+        )
+        for overrides in cases:
+            with self.subTest(overrides=overrides), patch(
+                (
+                    "EvidenceValidation.validator."
+                    "_publication_before_event"
+                )
+            ) as relationship_rule:
+                EvidenceValidator().validate(
+                    self._finding_with(**overrides)
+                )
+
+                relationship_rule.assert_not_called()
 
     def test_representative_domain_failures_propagate(self):
         invalid_cases = (
