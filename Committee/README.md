@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The Committee Layer defines a consistent foundation for collecting committee research results within the Stage 1 Research Layer. It establishes shared committee interfaces and data models without implementing execution, AI calls, or orchestration.
+The Committee Layer defines committee research boundaries and provides a synchronous Stage 2 runtime for executing an ordered collection of `AIRequest` objects through the existing `ExecutionEngine`.
 
 ## Committee Responsibilities
 
@@ -12,37 +12,37 @@ The Committee Layer defines a consistent foundation for collecting committee res
 - Validate committee results through a common interface.
 - Export committee results in a consistent format.
 - Identify unavailable or missing results without inventing or simulating responses.
+- Execute committee requests sequentially without interpreting responses.
+- Preserve request order and return the exact `AIResponse` objects produced by the Execution Engine.
 
-## Inputs
+## Runtime Inputs
 
-- Committee name
-- Research task ID
-- AI provider name
-- Prompt ID
-- Prompt version
+- A `CommitteeExecution` containing `committee_id`, `name`, and `requests: list[AIRequest]`
+- An explicitly supplied `ExecutionEngine`
 
-## Outputs
+## Runtime Output
 
-- Committee name
-- Research task ID
-- AI provider name
-- Prompt ID
-- Prompt version
-- Result status
-- Result summary
-- Error information when a provider response is missing or failed
-- Committee aggregate completeness
+- A `CommitteeExecutionResult` containing the original `committee_id`
+- `responses: list[AIResponse]` in request order
 
 ## Committee Contract
 
-Every committee follows the `Committee` interface:
+The Stage 1 `Committee.base.Committee` interface remains unchanged:
 
 - `prepare()` defines the preparation boundary.
 - `execute()` processes committee-level research using actual provider responses.
 - `validate()` defines the validation boundary.
 - `export()` defines the output boundary.
 
-This foundation defines the contract only. It contains no committee behavior, AI provider calls, or workflow orchestration.
+## Committee Runtime
+
+`CommitteeExecution` and `CommitteeExecutionResult` are distinct Stage 2 runtime contracts. They do not replace the Stage 1 `Committee` interface or `CommitteeResult` model.
+
+`CommitteeRuntime.run(committee)` validates a `CommitteeExecution` and then calls `ExecutionEngine.execute()` once for each request, sequentially and in list order. It returns a `CommitteeExecutionResult` with a new response list containing the exact response objects returned by the engine.
+
+The runtime does not mutate committees, requests, or responses. Provider selection, invocation, error normalization, and execution logging remain owned by `ExecutionEngine` and `AIAdapter`.
+
+An empty request list is valid and produces an empty response list.
 
 ## Committee Completeness Aggregate
 
@@ -77,4 +77,6 @@ Failed or missing providers must never be treated as completed. Provider output 
 
 ## Future Expansion
 
-Future approved tasks may define committee implementations, method signatures, validation rules, status values, result preservation, and integration boundaries. Expansion must retain actual committee results, explicitly record missing responses, and remain consistent with the Stage 1 Committee First Protocol.
+Future approved tasks may define committee preparation, validation, completeness calculation, and export behavior. Expansion must retain actual committee results, explicitly record missing responses, and remain consistent with the Stage 1 Committee First Protocol.
+
+M14 does not implement asynchronous or parallel execution, retries, fallback, voting, ranking, synthesis, planning, scheduling, queues, persistence, or provider-specific behavior.

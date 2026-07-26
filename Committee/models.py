@@ -1,5 +1,14 @@
 from dataclasses import dataclass
 
+from AIAdapter.models import AIRequest, AIResponse
+
+
+@dataclass
+class CommitteeExecution:
+    committee_id: str
+    name: str
+    requests: list[AIRequest]
+
 
 @dataclass
 class CommitteeRequest:
@@ -20,6 +29,12 @@ class CommitteeResult:
     status: str
     summary: str
     error: str
+
+
+@dataclass
+class CommitteeExecutionResult:
+    committee_id: str
+    responses: list[AIResponse]
 
 
 @dataclass
