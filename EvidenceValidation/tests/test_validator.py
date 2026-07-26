@@ -1,7 +1,13 @@
 import pathlib
 import unittest
+from dataclasses import FrozenInstanceError, fields
+from typing import get_type_hints
 from unittest.mock import patch
 
+from EvidenceValidation.models import (
+    EvidenceValidationIssue,
+    EvidenceValidationResult,
+)
 from EvidenceValidation.validator import EvidenceValidator
 from ResearchDomain.models import ResearchFinding
 
@@ -21,7 +27,28 @@ def make_finding() -> ResearchFinding:
 
 
 class EvidenceValidatorTests(unittest.TestCase):
-    def test_valid_finding_delegates_once_and_returns_none(self):
+    def test_structured_model_contracts(self):
+        self.assertEqual(
+            [field.name for field in fields(EvidenceValidationIssue)],
+            ["code", "message"],
+        )
+        self.assertEqual(
+            get_type_hints(EvidenceValidationIssue),
+            {"code": str, "message": str},
+        )
+        self.assertEqual(
+            [field.name for field in fields(EvidenceValidationResult)],
+            ["valid", "issues"],
+        )
+        self.assertEqual(
+            get_type_hints(EvidenceValidationResult),
+            {
+                "valid": bool,
+                "issues": tuple[EvidenceValidationIssue, ...],
+            },
+        )
+
+    def test_valid_finding_delegates_once_and_returns_result(self):
         finding = make_finding()
         original = vars(finding).copy()
 
@@ -34,7 +61,12 @@ class EvidenceValidatorTests(unittest.TestCase):
         ) as domain_validator:
             result = EvidenceValidator().validate(finding)
 
-        self.assertIsNone(result)
+        self.assertEqual(
+            result,
+            EvidenceValidationResult(valid=True, issues=()),
+        )
+        self.assertIs(result.valid, True)
+        self.assertEqual(result.issues, ())
         domain_validator.assert_called_once_with(finding)
         self.assertIs(
             domain_validator.call_args.args[0],
@@ -48,8 +80,45 @@ class EvidenceValidatorTests(unittest.TestCase):
 
         result = EvidenceValidator().validate(finding)
 
-        self.assertIsNone(result)
+        self.assertIsInstance(result, EvidenceValidationResult)
+        self.assertIs(result.valid, True)
+        self.assertEqual(result.issues, ())
         self.assertEqual(vars(finding), original)
+
+    def test_domain_validation_runs_before_result_construction(self):
+        finding = make_finding()
+        call_order = []
+
+        def validate(value):
+            self.assertIs(value, finding)
+            call_order.append("domain")
+
+        def build_result(*args, **kwargs):
+            call_order.append("result")
+            return EvidenceValidationResult(*args, **kwargs)
+
+        with patch(
+            (
+                "EvidenceValidation.validator."
+                "validate_research_finding"
+            ),
+            side_effect=validate,
+        ) as domain_validator, patch(
+            "EvidenceValidation.validator.EvidenceValidationResult",
+            side_effect=build_result,
+        ) as result_constructor:
+            result = EvidenceValidator().validate(finding)
+
+        self.assertEqual(call_order, ["domain", "result"])
+        domain_validator.assert_called_once_with(finding)
+        result_constructor.assert_called_once_with(
+            valid=True,
+            issues=(),
+        )
+        self.assertEqual(
+            result,
+            EvidenceValidationResult(valid=True, issues=()),
+        )
 
     def test_domain_exception_identity_propagates_unchanged(self):
         finding = make_finding()
@@ -72,6 +141,36 @@ class EvidenceValidatorTests(unittest.TestCase):
 
         self.assertIsNone(result)
         domain_validator.assert_called_once_with(finding)
+
+    def test_models_are_frozen_and_hashable(self):
+        issue = EvidenceValidationIssue(
+            code="example",
+            message="Example issue",
+        )
+        result = EvidenceValidationResult(
+            valid=False,
+            issues=(issue,),
+        )
+
+        with self.assertRaises(FrozenInstanceError):
+            issue.code = "changed"
+        with self.assertRaises(FrozenInstanceError):
+            result.valid = True
+
+        self.assertIsInstance(hash(issue), int)
+        self.assertIsInstance(hash(result), int)
+        self.assertEqual({issue}, {issue})
+        self.assertEqual({result}, {result})
+
+    def test_validation_result_rejects_non_tuple_issues(self):
+        with self.assertRaisesRegex(
+            TypeError,
+            "issues must be tuple",
+        ):
+            EvidenceValidationResult(
+                valid=True,
+                issues=[],
+            )
 
     def test_representative_domain_failures_propagate(self):
         invalid_cases = (
@@ -119,9 +218,11 @@ class EvidenceValidatorTests(unittest.TestCase):
             self.assertIs(getattr(finding, name), value)
 
     def test_production_runtime_isolation(self):
-        source = pathlib.Path(
-            __file__
-        ).parents[1].joinpath("validator.py").read_text()
+        package_root = pathlib.Path(__file__).parents[1]
+        source = (
+            package_root.joinpath("models.py").read_text()
+            + package_root.joinpath("validator.py").read_text()
+        )
 
         prohibited_names = (
             "ResearchOrchestrator",
