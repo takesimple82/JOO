@@ -1,12 +1,29 @@
+from __future__ import annotations
+
 from collections.abc import Iterable
+from datetime import datetime, timezone
 
 from AIAdapter.base import AIAdapter
 from AIAdapter.models import AIRequest, AIResponse
+from ExecutionEngine.logging import (
+    ExecutionLogger,
+    MemoryExecutionLogger,
+)
+from ExecutionEngine.models import ExecutionLog
 
 
 class ExecutionEngine:
-    def __init__(self, adapters: Iterable[AIAdapter] = ()):
+    def __init__(
+        self,
+        adapters: Iterable[AIAdapter] = (),
+        logger: ExecutionLogger | None = None,
+    ):
         self._adapters: dict[str, AIAdapter] = {}
+        if logger is not None and not isinstance(logger, ExecutionLogger):
+            raise TypeError("logger must be ExecutionLogger")
+        self._logger = (
+            logger if logger is not None else MemoryExecutionLogger()
+        )
         for adapter in adapters:
             self.register_adapter(adapter)
 
@@ -45,37 +62,51 @@ class ExecutionEngine:
 
     def execute(self, request: AIRequest) -> AIResponse:
         self._validate_input_type(request)
+        self._record(request, "start")
 
         invalid_field = self._invalid_request_field(request)
         if invalid_field:
-            return self._failure_response(
+            response = self._failure_response(
                 request,
                 f"Invalid execution request field: {invalid_field}",
             )
+            self._record_failure(request, response)
+            return response
 
         adapter = self._adapters.get(request.provider.casefold())
         if adapter is None:
-            return self._failure_response(
+            response = self._failure_response(
                 request,
                 f"Unsupported provider: {request.provider}",
             )
+            self._record_failure(request, response)
+            return response
 
         try:
             response = adapter.execute(request)
         except Exception as error:
-            return self._failure_response(
+            response = self._failure_response(
                 request,
                 (
                     f"Execution failed for provider "
                     f"{request.provider}: {type(error).__name__}"
                 ),
             )
+            self._record_failure(request, response)
+            return response
 
         if not isinstance(response, AIResponse):
-            return self._failure_response(
+            response = self._failure_response(
                 request,
                 f"Invalid response from provider: {request.provider}",
             )
+            self._record_failure(request, response)
+            return response
+
+        if response.status == "completed":
+            self._record(request, "success")
+        else:
+            self._record_failure(request, response)
         return response
 
     def finalize(self):
@@ -125,4 +156,39 @@ class ExecutionEngine:
             content="",
             status="failed",
             error=error,
+        )
+
+    def _record_failure(
+        self,
+        request: AIRequest,
+        response: AIResponse,
+    ) -> None:
+        self._record(request, "failure", response.error)
+
+    def _record(
+        self,
+        request: AIRequest,
+        event_type: str,
+        error: str = "",
+    ) -> None:
+        try:
+            entry = ExecutionLog(
+                task_id=request.task_id,
+                provider=request.provider,
+                prompt_id=request.prompt_id,
+                prompt_version=request.prompt_version,
+                event_type=event_type,
+                occurred_at=self._utc_now(),
+                error=error,
+            )
+            self._logger.record(entry)
+        except Exception:
+            return
+
+    @staticmethod
+    def _utc_now() -> str:
+        return (
+            datetime.now(timezone.utc)
+            .isoformat(timespec="seconds")
+            .replace("+00:00", "Z")
         )
