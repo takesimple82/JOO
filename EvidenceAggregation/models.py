@@ -23,3 +23,9 @@ class EvidenceAggregationItem:
 @dataclass(frozen=True)
 class EvidenceAggregationBatch:
     items: tuple[EvidenceAggregationItem, ...]
+
+
+@dataclass(frozen=True)
+class EvidenceAggregationGroup:
+    aggregation_key: str
+    items: tuple[EvidenceAggregationItem, ...]

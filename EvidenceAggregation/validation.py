@@ -4,6 +4,7 @@ from EvidenceAssessment.assessor import (
 from EvidenceAssessment.models import EvidenceAssessmentResult
 from EvidenceAggregation.models import (
     EvidenceAggregationBatch,
+    EvidenceAggregationGroup,
     EvidenceAggregationItem,
     EvidenceAggregationMetadata,
 )
@@ -106,6 +107,36 @@ def validate_evidence_aggregation_batch(
 
     for item in batch.items:
         validate_evidence_aggregation_item(item)
+
+
+def validate_evidence_aggregation_group(
+    group: EvidenceAggregationGroup,
+) -> None:
+    if type(group) is not EvidenceAggregationGroup:
+        raise TypeError(
+            "group must be EvidenceAggregationGroup"
+        )
+    if type(group.aggregation_key) is not str:
+        raise TypeError("aggregation_key must be str")
+    if not group.aggregation_key.strip():
+        raise ValueError(
+            "aggregation_key must not be blank"
+        )
+    if type(group.items) is not tuple:
+        raise TypeError("items must be tuple")
+    if not group.items:
+        raise ValueError("items must not be empty")
+
+    for item in group.items:
+        validate_evidence_aggregation_item(item)
+        if (
+            item.metadata.aggregation_key
+            != group.aggregation_key
+        ):
+            raise ValueError(
+                "item aggregation_key must match "
+                "group aggregation_key"
+            )
 
 
 def _require_nonblank_string(name: str, value: str) -> None:

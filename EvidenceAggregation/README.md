@@ -67,6 +67,24 @@ The batch is frozen and its tuple prevents element reassignment. It is not trans
 
 A valid batch does not imply that items share an aggregation group, findings are unique, sources are independent, evidence is assessable or accepted, corroboration or contradiction exists, aggregation can execute, or a result will be produced.
 
+## Group Boundary
+
+`EvidenceAggregationGroup` stores an explicit nonempty ordered tuple of already-grouped items under one caller-supplied aggregation key. Every validated item metadata key must exactly equal the group key. The group does not derive items from a batch, partition collections, search by key, or perform grouping.
+
+The group key must be the exact built-in `str` type and must contain non-whitespace content. String subclasses are rejected. The key is never trimmed, case-folded, normalized, rebuilt, or replaced. Consequently, `"group-001"` and `" group-001 "` are distinct valid keys, and item linkage uses their exact values.
+
+The item collection must be the exact built-in `tuple` type and must not be empty. Lists, tuple subclasses, generators, sequences, and arbitrary iterables are rejected without conversion or consumption. The exact key, tuple, and item objects remain stored in caller-supplied order.
+
+`validate_evidence_aggregation_group()` validates the group, key, tuple, and nonempty invariant before processing items. It then calls `validate_evidence_aggregation_item()` exactly once per item and checks that item’s aggregation key only after successful item validation. The first upstream exception or linkage mismatch stops processing. Upstream exceptions propagate unchanged without an index prefix.
+
+Repeated object references, equal items, repeated finding IDs, and repeated source-reference IDs are structurally permitted when their aggregation keys match. Acceptance does not certify uniqueness or non-duplication.
+
+Caller-supplied order is preserved without implying ranking, priority, chronology, confidence, quality, or execution precedence. No sorting, copying, normalization, grouping, or deduplication occurs.
+
+The group is frozen and its tuple prevents element reassignment, but it is not transitively immutable because nested items contain mutable `ResearchFinding` objects. Aggregation metadata is frozen, and nested finding mutation does not change aggregation-key linkage. Validation guarantees state only at validation time.
+
+A valid group does not imply item, finding, or source uniqueness; source independence; corroboration; contradiction; evidence acceptance; execution readiness; aggregate conclusions; or result production.
+
 ## Public API
 
 Use module-qualified imports:
@@ -74,9 +92,11 @@ Use module-qualified imports:
 - `EvidenceAggregation.models.EvidenceAggregationMetadata`
 - `EvidenceAggregation.models.EvidenceAggregationItem`
 - `EvidenceAggregation.models.EvidenceAggregationBatch`
+- `EvidenceAggregation.models.EvidenceAggregationGroup`
 - `EvidenceAggregation.validation.validate_evidence_aggregation_metadata`
 - `EvidenceAggregation.validation.validate_evidence_aggregation_item`
 - `EvidenceAggregation.validation.validate_evidence_aggregation_batch`
+- `EvidenceAggregation.validation.validate_evidence_aggregation_group`
 
 The package does not provide package-root aliases.
 
