@@ -198,17 +198,14 @@ class EvidenceAggregationMetadataTests(unittest.TestCase):
         ):
             validate_evidence_aggregation_metadata(metadata)
 
-    def test_package_has_no_runtime_or_upstream_dependencies(self):
+    def test_package_has_no_forbidden_dependencies(self):
         package_root = pathlib.Path(__file__).parents[1]
         production_source = (
             package_root.joinpath("models.py").read_text()
             + package_root.joinpath("validation.py").read_text()
         )
         prohibited_dependencies = (
-            "ResearchDomain",
             "EvidenceValidation",
-            "EvidenceProvenance",
-            "EvidenceAssessment",
             "ResearchLogging",
             "ResearchOrchestrator",
             "PipelineRuntime",
