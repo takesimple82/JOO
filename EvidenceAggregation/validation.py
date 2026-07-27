@@ -3,6 +3,7 @@ from EvidenceAssessment.assessor import (
 )
 from EvidenceAssessment.models import EvidenceAssessmentResult
 from EvidenceAggregation.models import (
+    EvidenceAggregationBatch,
     EvidenceAggregationItem,
     EvidenceAggregationMetadata,
 )
@@ -91,6 +92,20 @@ def validate_evidence_aggregation_item(
             "assessment policy_version must be "
             f"{ASSESSMENT_POLICY_VERSION}"
         )
+
+
+def validate_evidence_aggregation_batch(
+    batch: EvidenceAggregationBatch,
+) -> None:
+    if type(batch) is not EvidenceAggregationBatch:
+        raise TypeError(
+            "batch must be EvidenceAggregationBatch"
+        )
+    if type(batch.items) is not tuple:
+        raise TypeError("items must be tuple")
+
+    for item in batch.items:
+        validate_evidence_aggregation_item(item)
 
 
 def _require_nonblank_string(name: str, value: str) -> None:

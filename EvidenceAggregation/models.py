@@ -18,3 +18,8 @@ class EvidenceAggregationItem:
     provenance: EvidenceProvenanceMetadata
     assessment: EvidenceAssessmentResult
     metadata: EvidenceAggregationMetadata
+
+
+@dataclass(frozen=True)
+class EvidenceAggregationBatch:
+    items: tuple[EvidenceAggregationItem, ...]

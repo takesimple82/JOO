@@ -49,14 +49,34 @@ Upstream exceptions propagate unchanged. Contract failures are not wrapped or co
 
 The item validator accepts structurally valid unassessable evidence. It does not require `assessable` or `validation.valid` to be true and does not recertify dimensions, rationales, or validation internals. The exact assessment and embedded validation objects remain unchanged.
 
+## Batch Boundary
+
+`EvidenceAggregationBatch` stores an explicit ordered tuple of `EvidenceAggregationItem` objects for possible future aggregation processing. It assigns no execution or aggregation semantics.
+
+The supplied collection must be the exact built-in `tuple` type. Lists, tuple subclasses, generators, sequences, and other iterables are rejected rather than converted or consumed. The exact tuple and every item object are stored directly in caller-supplied order. No copying, reconstruction, normalization, sorting, grouping, or deduplication occurs.
+
+An empty tuple is structurally valid. The batch validator returns `None` without invoking item validation.
+
+Repeated structures are permitted, including the same item object, equal items, and items sharing finding IDs, aggregation keys, or source-reference IDs. Acceptance does not certify uniqueness or non-duplication.
+
+`validate_evidence_aggregation_batch()` requires the exact batch type, requires an exact tuple, and delegates to `validate_evidence_aggregation_item()` exactly once per item in tuple order. It stops on the first failure and propagates the exact exception unchanged. It does not add an item index or produce a partial result.
+
+Tuple order is deterministic caller-supplied order only. It does not imply ranking, priority, chronology, confidence, quality, or execution precedence.
+
+The batch is frozen and its tuple prevents element reassignment. It is not transitively immutable because nested items contain mutable `ResearchFinding` objects. Validation guarantees state only at validation time.
+
+A valid batch does not imply that items share an aggregation group, findings are unique, sources are independent, evidence is assessable or accepted, corroboration or contradiction exists, aggregation can execute, or a result will be produced.
+
 ## Public API
 
 Use module-qualified imports:
 
 - `EvidenceAggregation.models.EvidenceAggregationMetadata`
 - `EvidenceAggregation.models.EvidenceAggregationItem`
+- `EvidenceAggregation.models.EvidenceAggregationBatch`
 - `EvidenceAggregation.validation.validate_evidence_aggregation_metadata`
 - `EvidenceAggregation.validation.validate_evidence_aggregation_item`
+- `EvidenceAggregation.validation.validate_evidence_aggregation_batch`
 
 The package does not provide package-root aliases.
 
