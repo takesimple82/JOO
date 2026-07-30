@@ -14,6 +14,16 @@ def classify_exact_cross_context_numeric_delta_direction(
 ) -> ExactCrossContextNumericDeltaDirectionStatus:
     validate_exact_cross_context_numeric_delta(delta)
 
+    return (
+        _classify_exact_cross_context_numeric_delta_direction_unchecked(
+            delta
+        )
+    )
+
+
+def _classify_exact_cross_context_numeric_delta_direction_unchecked(
+    delta: ExactCrossContextNumericDelta,
+) -> ExactCrossContextNumericDeltaDirectionStatus:
     if delta.value.is_zero():
         return ExactCrossContextNumericDeltaDirectionStatus.ZERO
     if delta.value.is_signed():

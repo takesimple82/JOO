@@ -20,6 +20,16 @@ def classify_exact_numeric_delta_materiality(
     validate_exact_cross_context_numeric_delta(delta)
     validate_exact_numeric_delta_materiality_policy(policy)
 
+    return _classify_exact_numeric_delta_materiality_unchecked(
+        delta,
+        policy,
+    )
+
+
+def _classify_exact_numeric_delta_materiality_unchecked(
+    delta: ExactCrossContextNumericDelta,
+    policy: ExactNumericDeltaMaterialityPolicy,
+) -> ExactNumericDeltaMaterialityStatus:
     if delta.unit_id != policy.unit_id:
         return ExactNumericDeltaMaterialityStatus.UNIT_MISMATCH
 
