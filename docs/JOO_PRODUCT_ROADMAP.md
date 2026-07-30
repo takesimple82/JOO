@@ -293,35 +293,82 @@ Convert structured knowledge into testable investment theses while detecting con
 - Thesis changes are versioned and explainable.
 - Risks, catalysts, and invalidation conditions are measurable.
 
-### Stage 4 — CIO Decision Engine
+### Stage 4 — Investment Intelligence Structural Chain
 
 #### Objective
 
-Translate investment intelligence into consistent, portfolio-aware capital allocation recommendations.
+Establish a validation-first structural chain from accepted Evidence through
+Signal, Hypothesis, and Thesis to a canonical Portfolio Subject.
 
 #### Architecture Mapping
 
-- Portfolio Engine
-- CIO Engine
-- Human Approval Gate
-- Dashboard
+- Evidence Engine
+- Signal Engine
+- Hypothesis Engine
+- Thesis Engine
+- Portfolio Subject boundary
 
 #### Deliverables
 
-- Portfolio construction and constraint engine
-- Position sizing and risk allocation models
-- Scenario and stress-testing capabilities
-- CIO recommendations with decision rationale
-- Human approval and override workflow
+- Exact cross-context numeric change and Signal contracts
+- Explicit and semantically produced Hypothesis contracts
+- Signal-to-Hypothesis linkage
+- Explicit and semantically produced Thesis contracts
+- Hypothesis-to-Thesis linkage
+- Thesis-to-Portfolio-Subject structural linkage
 
 #### Exit Criteria
 
-- Recommendations account for the entire portfolio and defined constraints.
-- Every allocation decision is traceable to evidence and theses.
-- Human approval is required for material capital allocation actions.
-- Recommendations can be reproduced from recorded inputs and configuration.
+- The accepted structural chain is continuous from Evidence to a canonical
+  Portfolio Subject.
+- Structural identity, semantic production attestation, linkage, and numeric
+  evaluation responsibilities remain separate.
+- Portfolio Impact interpretation is not inferred from numeric direction,
+  Thesis text, or identifiers.
 
-### Stage 5 — Automation Platform
+#### Completion Status
+
+Completed at `v3.21-stage4-thesis-portfolio-subject-link-m1`. Portfolio Impact,
+Expected Value, portfolio operational context, recommendation, allocation,
+constraints, human decisions, overrides, and audit boundaries are planned
+Stage 5 responsibilities.
+
+### Stage 5 — Semantic Investment Interpretation and Decision
+
+#### Objective
+
+Translate the accepted structural investment-intelligence chain into explicit,
+portfolio-aware semantic interpretations and reviewable capital decision
+contracts.
+
+#### Architecture Mapping
+
+- Portfolio Impact
+- Expected Value
+- Portfolio Context
+- Recommendation and Allocation Proposal
+- Constraint Evaluation
+- Explainability
+- Human Decision and Override
+- Audit Domain
+
+#### Planned Deliverables
+
+- Portfolio Impact applicability, interpretation policy, and semantic
+  production
+- Expected Value assumptions and exact result contracts
+- Canonical portfolio identity, membership, positions, holding snapshots, and
+  watchlist entries
+- Portfolio snapshots, capital buckets, and risk budgets
+- Recommendations, allocation proposals, and constraint evaluations
+- Explainability, human approval, override, and audit domain boundaries
+
+#### Status
+
+Planned. Stage 5 implementation is not complete. Runtime execution, workflow,
+monitoring, persistence enforcement, and automation remain Stage 6 scope.
+
+### Stage 6 — Automation Platform
 
 #### Objective
 
