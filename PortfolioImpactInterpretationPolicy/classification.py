@@ -1,3 +1,5 @@
+import PortfolioImpactInterpretationPolicy._classification as _private
+
 from PortfolioImpactInterpretationPolicy.models import (
     PortfolioImpactDirection,
     PortfolioImpactInterpretationPolicy,
@@ -26,22 +28,12 @@ def classify_portfolio_impact_interpretation_policy_applicability(
     if type(rationale) is not str:
         raise TypeError("rationale must be str")
 
-    if direction not in policy.allowed_directions:
-        return (
-            PortfolioImpactInterpretationPolicyApplicabilityStatus
-            .DIRECTION_NOT_ALLOWED
-        )
-    if horizon_id not in policy.allowed_horizon_ids:
-        return (
-            PortfolioImpactInterpretationPolicyApplicabilityStatus
-            .HORIZON_NOT_ALLOWED
-        )
-    if policy.rationale_required and rationale.strip() == "":
-        return (
-            PortfolioImpactInterpretationPolicyApplicabilityStatus
-            .RATIONALE_REQUIRED
-        )
     return (
-        PortfolioImpactInterpretationPolicyApplicabilityStatus
-        .APPLICABLE
+        _private
+        ._classify_portfolio_impact_interpretation_policy_applicability_unchecked(
+            policy,
+            direction,
+            horizon_id,
+            rationale,
+        )
     )

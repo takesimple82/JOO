@@ -1,3 +1,5 @@
+import PortfolioImpactApplicability._classification as _private
+
 from PortfolioDomain.models import PortfolioSubject
 from PortfolioDomain.validation import validate_portfolio_subject
 from PortfolioImpactApplicability.models import (
@@ -26,17 +28,8 @@ def classify_portfolio_impact_applicability(
     validate_explicit_thesis_portfolio_subject_link(link)
     validate_portfolio_subject(portfolio_subject)
 
-    if semantic_thesis.thesis.thesis_id != link.thesis_id:
-        return (
-            PortfolioImpactApplicabilityStatus
-            .THESIS_ENDPOINT_MISMATCH
-        )
-    if (
-        portfolio_subject.subject_id
-        != link.portfolio_subject_id
-    ):
-        return (
-            PortfolioImpactApplicabilityStatus
-            .PORTFOLIO_SUBJECT_ENDPOINT_MISMATCH
-        )
-    return PortfolioImpactApplicabilityStatus.APPLICABLE
+    return _private._classify_portfolio_impact_applicability_unchecked(
+        semantic_thesis,
+        link,
+        portfolio_subject,
+    )
