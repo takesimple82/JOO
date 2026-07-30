@@ -44,6 +44,26 @@ def classify_baseline_current_proposition_pair_applicability(
         current_context_date
     )
 
+    return (
+        _classify_baseline_current_proposition_pair_applicability_unchecked(
+            pair,
+            baseline,
+            current,
+            baseline_context_date,
+            current_context_date,
+            classify_effective_context_temporal_ordering,
+        )
+    )
+
+
+def _classify_baseline_current_proposition_pair_applicability_unchecked(
+    pair: ExplicitBaselineCurrentPropositionPair,
+    baseline: ExactObservedNumericProposition,
+    current: ExactObservedNumericProposition,
+    baseline_context_date: ExplicitEffectiveContextObservedDate,
+    current_context_date: ExplicitEffectiveContextObservedDate,
+    temporal_classifier,
+) -> BaselineCurrentPropositionPairApplicabilityStatus:
     if pair.baseline_proposition_id != baseline.proposition_id:
         return (
             BaselineCurrentPropositionPairApplicabilityStatus
@@ -71,7 +91,7 @@ def classify_baseline_current_proposition_pair_applicability(
             .CURRENT_CONTEXT_ENDPOINT_MISMATCH
         )
 
-    temporal_status = classify_effective_context_temporal_ordering(
+    temporal_status = temporal_classifier(
         baseline_context_date,
         current_context_date,
     )

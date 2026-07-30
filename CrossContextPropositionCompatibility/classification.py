@@ -16,6 +16,18 @@ def classify_cross_context_proposition_compatibility(
     validate_semantically_produced_numeric_proposition(baseline)
     validate_semantically_produced_numeric_proposition(current)
 
+    return (
+        _classify_cross_context_proposition_compatibility_unchecked(
+            baseline,
+            current,
+        )
+    )
+
+
+def _classify_cross_context_proposition_compatibility_unchecked(
+    baseline: SemanticallyProducedNumericProposition,
+    current: SemanticallyProducedNumericProposition,
+) -> CrossContextPropositionCompatibilityStatus:
     if (
         baseline.proposition.subject_id
         != current.proposition.subject_id
