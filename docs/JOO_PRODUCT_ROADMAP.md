@@ -224,6 +224,47 @@ Transform research artifacts into structured, queryable, and durable investment 
 - Knowledge changes preserve historical state.
 - Relevant knowledge can be reliably retrieved by entity and topic.
 
+#### Current Repository Boundary
+
+The accepted repository implementation through
+`v2.7-stage3-evidence-supersession-applicability-m1` completes the current
+Foundation input and Evidence contract scope:
+
+- `ResearchFinding`-based Foundation input contracts
+- Evidence validation, provenance, assessment, and aggregation
+- The structural `ExactObservedNumericProposition` substrate
+- Exact numeric comparison and contradiction-candidate classification
+- Explicit proposition supersession and supersession applicability
+
+This boundary does not complete semantic Knowledge production.
+`ResearchFinding.statement` is an interpreted research statement, not an
+immutable source document or structured semantic evidence record. The
+repository has no callable producer that converts it into an
+`ExactObservedNumericProposition`; that proposition remains a downstream
+structural substrate.
+
+The repository does not infer numeric or date occurrences from free-form
+research text. It does not treat `event_date` or `publication_date` as an
+`observed_on` value. Semantic Knowledge production must be supplied by an
+accepted external or future upstream producer. No extraction runtime, LLM
+inference contract, heuristic NLP parser, or closed extraction grammar is
+owned by this repository boundary.
+
+The following Knowledge responsibilities remain unimplemented:
+
+- Immutable source snapshots and numeric/date occurrence extraction
+- Numeric-value-to-observed-date semantic linkage
+- Canonical entity governance and predicate specifications
+- Effective-context semantic production and temporal ordering
+- Baseline selection and durable Knowledge retrieval
+
+Signal, Hypothesis, and Thesis remain unimplemented. Signal implementation
+must not begin until accepted upstream contracts provide semantically produced
+numeric propositions, explicit observed-date context, compatible context
+ordering, and deterministic baseline/current inputs. The existing opaque
+`effective_context_id` supports identity equality only and must not be treated
+as chronological or self-ordering.
+
 ### Stage 3 — Investment Intelligence
 
 #### Objective
