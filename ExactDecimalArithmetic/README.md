@@ -3,27 +3,38 @@
 This package provides context-independent arithmetic for exact finite
 `decimal.Decimal` values.
 
-## Public contract
+## Public contracts
+
+`add_exact_decimal(augend, addend) -> Decimal` validates the augend first and
+the addend second. It aligns both signed integer coefficients at the finer
+input exponent and adds them with Python integers. The result retains that
+finer exponent.
+
+`multiply_exact_decimal(multiplicand, multiplier) -> Decimal` validates the
+multiplicand first and the multiplier second. It multiplies the signed integer
+coefficients with Python integers and uses the sum of the input exponents.
+Nonzero result signs follow the XOR of the input signs.
 
 `subtract_exact_decimal(minuend, subtrahend) -> Decimal` validates the minuend
 first and the subtrahend second. Each must be the exact built-in `Decimal`
 type and finite.
 
-Validation raises:
+All public functions require exact finite built-in Decimal operands in
+declared order. Validation raises:
 
 - `TypeError("<name> must be Decimal")` for a wrong type or Decimal subclass.
 - `ValueError("<name> must be finite")` for NaN or infinity.
 
-The function returns the exact mathematical result of `minuend - subtrahend`.
-It does not use Decimal arithmetic operators. Instead, it reads each immutable
-Decimal tuple, aligns signed integer coefficients at the finer input exponent,
-subtracts those exact Python integers, and constructs the result directly from
-a Decimal tuple.
+Each function returns the exact mathematical result. Calculations do not use
+Decimal arithmetic operators. They read immutable Decimal tuples, operate on
+exact Python integer coefficients, and construct results directly from Decimal
+tuples.
 
-The result uses the finer input exponent and therefore preserves that input
-scale. A zero result is deterministic positive zero at the finer exponent.
-Inputs remain unchanged. The implementation neither reads nor changes the
-active decimal context, its precision, traps, flags, or rounding mode.
+Addition and subtraction use the finer input exponent. Multiplication uses the
+sum of the input exponents. A zero result is deterministic positive zero at
+the exponent selected by the operation. Inputs remain unchanged. The
+implementation neither reads nor changes the active decimal context, its
+precision, traps, flags, or rounding mode.
 
 ## Non-responsibilities
 
