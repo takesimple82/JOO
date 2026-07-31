@@ -22,6 +22,10 @@ No built-in `sum()`, ordinary Decimal addition, tolerance, or epsilon is used.
 A private unchecked classifier contains only the post-validation
 classification logic so a future downstream validator can reuse it after
 validating a semantic wrapper. The private helper is not public API.
+The applicability package explicitly owns this internal boundary. Approved
+internal consumers may use it only after completing the accepted upstream
+validation; it is not re-exported, and probability-total logic must not be
+duplicated elsewhere.
 
 ## Non-responsibilities
 

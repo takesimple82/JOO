@@ -1,3 +1,9 @@
+"""Applicability-owned unchecked classification boundary.
+
+This private module owns probability-total classification after an approved
+consumer has completed the accepted upstream validation. It is not public API.
+"""
+
 from decimal import Decimal
 
 from ExactDecimalArithmetic.arithmetic import (
