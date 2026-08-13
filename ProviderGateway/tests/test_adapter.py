@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import FrozenInstanceError
 from datetime import datetime, timezone
 
+from ProviderGateway.adapters.kb_open_api import KbOpenApiAdapter
 from ProviderGateway.adapters.market_api import MarketApiAdapter
 from ProviderGateway.adapters.ports import (
     ExplicitHealthProbe,
@@ -12,9 +14,14 @@ from ProviderGateway.adapters.ports import (
 from ProviderGateway.provider_interface import ProviderInterface
 from ProviderGateway.tests.builders import (
     FIXED_CLOCK,
+    FakeBrokerTransport,
     FakeTransport,
+    broker_credential_supplier,
     credential_supplier,
     make_binding,
+    make_broker_binding,
+    make_broker_profile,
+    make_broker_request,
     make_korea_profile,
     make_request,
     make_us_profile,
@@ -444,6 +451,423 @@ class MarketApiAdapterTests(unittest.TestCase):
         if binding is None:
             binding = make_binding()
         return MarketApiAdapter(
+            binding,
+            transport,
+            supplier,
+            clock,
+        )
+
+    def test_market_adapter_rejects_broker_request(self):
+        adapter = self._adapter()
+        with self.assertRaisesRegex(
+            TypeError,
+            "^request must be ExplicitCollectRequest$",
+        ):
+            adapter.collect(make_broker_request())
+
+
+class KbOpenApiAdapterTests(unittest.TestCase):
+    def test_adapter_implements_provider_interface(self):
+        adapter = self._adapter()
+        self.assertIsInstance(adapter, ProviderInterface)
+        self.assertEqual(adapter.provider_id, "kb_open_api")
+        self.assertEqual(
+            adapter.declared_source_class,
+            "broker_fact",
+        )
+
+    def test_success_path_tags_broker_fact_explicitly(self):
+        adapter = self._adapter()
+        outcome = adapter.collect(make_broker_request())
+        self.assertEqual(outcome.result_kind, "success")
+        self.assertIsNone(outcome.failure)
+        envelope = outcome.envelope
+        self.assertEqual(envelope.source_class, "broker_fact")
+        self.assertEqual(envelope.provider_id, "kb_open_api")
+        self.assertEqual(envelope.status, "success")
+        self.assertEqual(envelope.envelope_id, "envelope-001")
+        self.assertEqual(envelope.collected_at, FIXED_CLOCK)
+        self.assertIs(envelope.collected_at.tzinfo, timezone.utc)
+        self.assertIsInstance(envelope.payload, dict)
+        self.assertIsNone(envelope.error_diagnostics)
+        with self.assertRaises(FrozenInstanceError):
+            envelope.source_class = "market_fact"
+
+    def test_each_authorized_kind_is_one_collect(self):
+        for request_kind in (
+            "holdings",
+            "balances",
+            "account_state",
+        ):
+            with self.subTest(request_kind=request_kind):
+                transport = FakeBrokerTransport(
+                    ExplicitTransportSuccess(
+                        {request_kind: "opaque-body"}
+                    )
+                )
+                adapter = self._adapter(transport=transport)
+                outcome = adapter.collect(
+                    make_broker_request(
+                        request_kind=request_kind
+                    )
+                )
+                self.assertEqual(outcome.result_kind, "success")
+                self.assertEqual(len(transport.reads), 1)
+                self.assertIs(
+                    transport.reads[0]["request"].request_kind,
+                    request_kind,
+                )
+                self.assertEqual(
+                    outcome.envelope.source_class,
+                    "broker_fact",
+                )
+                self.assertNotIn(
+                    "request_kind",
+                    vars(outcome.envelope),
+                )
+
+    def test_caller_supplied_envelope_id_is_preserved(self):
+        supplied = " caller-envelope-99 "
+        adapter = self._adapter()
+        outcome = adapter.collect(
+            make_broker_request(envelope_id=supplied)
+        )
+        self.assertEqual(
+            outcome.envelope.envelope_id,
+            supplied,
+        )
+        self.assertIs(
+            outcome.envelope.envelope_id,
+            supplied,
+        )
+
+    def test_collected_at_comes_from_injected_clock(self):
+        adapter = self._adapter()
+        outcome = adapter.collect(make_broker_request())
+        self.assertEqual(
+            outcome.envelope.collected_at,
+            FIXED_CLOCK,
+        )
+        self.assertNotIn(
+            "collected_at",
+            make_broker_request().__dataclass_fields__,
+        )
+
+    def test_rejects_orders_and_fills_as_request_kind(self):
+        adapter = self._adapter()
+        for request_kind in ("orders", "fills"):
+            with self.subTest(request_kind=request_kind):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "^request_kind must be one of "
+                    "BROKER_REQUEST_KIND_VALUES$",
+                ):
+                    adapter.collect(
+                        make_broker_request(
+                            request_kind=request_kind
+                        )
+                    )
+
+    def test_rejects_kind_outside_binding_request_set(self):
+        binding = make_broker_binding(
+            parameter_profile=make_broker_profile(
+                request_set=("balances",)
+            )
+        )
+        adapter = self._adapter(binding=binding)
+        with self.assertRaisesRegex(
+            ValueError,
+            "^request_kind must be in request_set$",
+        ):
+            adapter.collect(
+                make_broker_request(
+                    binding=binding,
+                    request_kind="holdings",
+                )
+            )
+
+    def test_rejects_non_kb_provider_id_at_construction(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "^provider_id must be kb_open_api$",
+        ):
+            KbOpenApiAdapter(
+                make_broker_binding(
+                    provider_id="other-broker"
+                ),
+                FakeBrokerTransport(),
+                broker_credential_supplier(),
+                utc_now,
+            )
+
+    def test_collect_accepts_only_broker_request(self):
+        adapter = self._adapter()
+        with self.assertRaisesRegex(
+            TypeError,
+            "^request must be ExplicitBrokerCollectRequest$",
+        ):
+            adapter.collect(make_request())
+
+    def test_secrets_do_not_survive_mapping(self):
+        secret = "broker-super-secret-token"
+        transport = FakeBrokerTransport(
+            ExplicitTransportSuccess(
+                {
+                    "holdings": "opaque-holdings",
+                    "token": secret,
+                    "password": "hunter2",
+                }
+            )
+        )
+        adapter = self._adapter(
+            transport=transport,
+            supplier=broker_credential_supplier(secret),
+        )
+        outcome = adapter.collect(make_broker_request())
+        payload = outcome.envelope.payload
+        self.assertEqual(
+            payload["holdings"],
+            "opaque-holdings",
+        )
+        self.assertNotIn("token", payload)
+        self.assertNotIn("password", payload)
+        self.assertNotIn(secret, payload.values())
+        self.assertNotIn("hunter2", payload.values())
+        rendered = repr(payload)
+        self.assertNotIn(secret, rendered)
+        self.assertNotIn("hunter2", rendered)
+        self.assertIsNone(outcome.envelope.error_diagnostics)
+
+    def test_secret_value_in_body_is_not_success(self):
+        secret = "broker-super-secret-token"
+        transport = FakeBrokerTransport(
+            ExplicitTransportSuccess(
+                {"holdings": secret}
+            )
+        )
+        adapter = self._adapter(
+            transport=transport,
+            supplier=broker_credential_supplier(secret),
+        )
+        outcome = adapter.collect(make_broker_request())
+        self.assertEqual(outcome.result_kind, "failure")
+        self.assertIsNone(outcome.envelope)
+        self.assertEqual(
+            outcome.failure.failure_class,
+            "VALIDATION_FAILURE",
+        )
+        self.assertIsNone(outcome.failure.detail)
+        self.assertNotIn(secret, repr(outcome.failure))
+
+    def test_empty_wire_is_validation_failure(self):
+        bodies = ({}, None, "not-a-dict", [])
+        for body in bodies:
+            with self.subTest(body=repr(body)):
+                transport = FakeBrokerTransport(
+                    ExplicitTransportSuccess(
+                        {"holdings": "1"}
+                    )
+                )
+                transport.result = ExplicitTransportSuccess(
+                    body
+                )
+                adapter = self._adapter(transport=transport)
+                outcome = adapter.collect(make_broker_request())
+                self.assertEqual(outcome.result_kind, "failure")
+                self.assertIsNone(outcome.envelope)
+                self.assertEqual(
+                    outcome.failure.failure_class,
+                    "VALIDATION_FAILURE",
+                )
+                self.assertNotIn(
+                    "holdings",
+                    repr(outcome.failure),
+                )
+                self.assertNotIn(
+                    "balances",
+                    repr(outcome.failure),
+                )
+                self.assertNotIn(
+                    "account_state",
+                    repr(outcome.failure),
+                )
+
+    def test_transport_failures_are_not_synthetic_success(self):
+        cases = (
+            "AUTH_FAILURE",
+            "TRANSPORT_FAILURE",
+            "PROVIDER_ERROR",
+            "UNAVAILABLE",
+            "RATE_LIMITED",
+        )
+        for failure_class in cases:
+            with self.subTest(failure_class=failure_class):
+                transport = FakeBrokerTransport(
+                    ExplicitTransportFailure(
+                        failure_class,
+                        "provider unavailable",
+                    )
+                )
+                adapter = self._adapter(transport=transport)
+                outcome = adapter.collect(make_broker_request())
+                self.assertEqual(outcome.result_kind, "failure")
+                self.assertIsNone(outcome.envelope)
+                self.assertEqual(
+                    outcome.failure.failure_class,
+                    failure_class,
+                )
+                self.assertNotIn(
+                    "holdings",
+                    repr(outcome.failure),
+                )
+                self.assertNotIn(
+                    "orders",
+                    repr(outcome.failure),
+                )
+                self.assertNotIn(
+                    "fills",
+                    repr(outcome.failure),
+                )
+
+    def test_raised_transport_is_transport_failure(self):
+        transport = FakeBrokerTransport(
+            raise_on_read=RuntimeError("socket closed")
+        )
+        adapter = self._adapter(transport=transport)
+        outcome = adapter.collect(make_broker_request())
+        self.assertEqual(outcome.result_kind, "failure")
+        self.assertIsNone(outcome.envelope)
+        self.assertEqual(
+            outcome.failure.failure_class,
+            "TRANSPORT_FAILURE",
+        )
+        self.assertIsNone(outcome.failure.detail)
+
+    def test_missing_credentials_are_auth_failure(self):
+        def missing(_ref):
+            return ""
+
+        adapter = self._adapter(supplier=missing)
+        outcome = adapter.collect(make_broker_request())
+        self.assertEqual(outcome.result_kind, "failure")
+        self.assertIsNone(outcome.envelope)
+        self.assertEqual(
+            outcome.failure.failure_class,
+            "AUTH_FAILURE",
+        )
+
+    def test_one_attempt_is_one_transport_read(self):
+        transport = FakeBrokerTransport()
+        adapter = self._adapter(transport=transport)
+        first = adapter.collect(make_broker_request())
+        second = adapter.collect(
+            make_broker_request(envelope_id="envelope-002")
+        )
+        self.assertEqual(len(transport.reads), 2)
+        self.assertEqual(first.result_kind, "success")
+        self.assertEqual(second.result_kind, "success")
+        self.assertNotEqual(
+            first.envelope.envelope_id,
+            second.envelope.envelope_id,
+        )
+
+    def test_health_does_not_fabricate_an_envelope(self):
+        transport = FakeBrokerTransport(
+            probe=ExplicitHealthProbe("available", None)
+        )
+        adapter = self._adapter(transport=transport)
+        snapshot = adapter.health()
+        self.assertEqual(snapshot.provider_id, "kb_open_api")
+        self.assertEqual(snapshot.availability, "available")
+        self.assertEqual(snapshot.observed_at, FIXED_CLOCK)
+        self.assertFalse(hasattr(snapshot, "payload"))
+        self.assertFalse(hasattr(snapshot, "source_class"))
+        self.assertEqual(len(transport.reads), 0)
+        self.assertEqual(len(transport.probes), 1)
+
+    def test_health_degraded_and_unavailable(self):
+        degraded = self._adapter(
+            transport=FakeBrokerTransport(
+                probe=ExplicitTransportFailure(
+                    "RATE_LIMITED",
+                    None,
+                )
+            )
+        ).health()
+        self.assertEqual(degraded.availability, "degraded")
+        unavailable = self._adapter(
+            transport=FakeBrokerTransport(
+                probe=ExplicitTransportFailure(
+                    "UNAVAILABLE",
+                    None,
+                )
+            )
+        ).health()
+        self.assertEqual(
+            unavailable.availability,
+            "unavailable",
+        )
+
+    def test_health_detail_does_not_leak_secret_names(self):
+        snapshot = self._adapter(
+            transport=FakeBrokerTransport(
+                probe=ExplicitTransportFailure(
+                    "PROVIDER_ERROR",
+                    "token expired",
+                )
+            )
+        ).health()
+        self.assertEqual(snapshot.availability, "degraded")
+        self.assertIsNone(snapshot.detail)
+
+    def test_transport_receives_outbound_secret_only(self):
+        secret = "broker-outbound-secret"
+        transport = FakeBrokerTransport()
+        adapter = self._adapter(
+            transport=transport,
+            supplier=broker_credential_supplier(secret),
+        )
+        outcome = adapter.collect(make_broker_request())
+        self.assertEqual(outcome.result_kind, "success")
+        self.assertEqual(
+            transport.reads[0]["credential"],
+            secret,
+        )
+        self.assertNotIn(secret, outcome.envelope.payload)
+        self.assertNotIn("token", outcome.envelope.payload)
+
+    def test_broker_path_never_emits_market_or_research(self):
+        adapter = self._adapter()
+        outcome = adapter.collect(make_broker_request())
+        self.assertEqual(
+            outcome.envelope.source_class,
+            "broker_fact",
+        )
+        self.assertNotEqual(
+            outcome.envelope.source_class,
+            "market_fact",
+        )
+        self.assertNotEqual(
+            outcome.envelope.source_class,
+            "research_ai",
+        )
+
+    def _adapter(
+        self,
+        transport=None,
+        supplier=None,
+        clock=None,
+        binding=None,
+    ):
+        if transport is None:
+            transport = FakeBrokerTransport()
+        if supplier is None:
+            supplier = broker_credential_supplier()
+        if clock is None:
+            clock = utc_now
+        if binding is None:
+            binding = make_broker_binding()
+        return KbOpenApiAdapter(
             binding,
             transport,
             supplier,

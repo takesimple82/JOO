@@ -8,6 +8,9 @@ from ProviderGateway.adapters.ports import (
     ExplicitTransportSuccess,
 )
 from ProviderGateway.models.types import (
+    ExplicitBrokerAdapterBinding,
+    ExplicitBrokerCollectRequest,
+    ExplicitBrokerParameterProfile,
     ExplicitCollectRequest,
     ExplicitErrorDiagnostics,
     ExplicitMarketAdapterBinding,
@@ -182,6 +185,93 @@ class FakeTransport:
 def credential_supplier(secret="outbound-secret"):
     def supply(credential_ref):
         if credential_ref != "market-cred-ref":
+            raise ValueError("unknown credential_ref")
+        return secret
+
+    return supply
+
+
+def make_broker_profile(**overrides):
+    values = {
+        "profile_id": "broker-profile-001",
+        "account_selector": "opaque-account-selector",
+        "request_set": (
+            "holdings",
+            "balances",
+            "account_state",
+        ),
+    }
+    values.update(overrides)
+    return ExplicitBrokerParameterProfile(**values)
+
+
+def make_broker_binding(**overrides):
+    values = {
+        "provider_id": "kb_open_api",
+        "credential_ref": "broker-cred-ref",
+        "parameter_profile": make_broker_profile(),
+    }
+    values.update(overrides)
+    return ExplicitBrokerAdapterBinding(**values)
+
+
+def make_broker_request(**overrides):
+    values = {
+        "envelope_id": "envelope-001",
+        "request_correlation_id": "corr-001",
+        "binding": make_broker_binding(),
+        "request_kind": "holdings",
+    }
+    values.update(overrides)
+    return ExplicitBrokerCollectRequest(**values)
+
+
+class FakeBrokerTransport:
+    def __init__(
+        self,
+        result=None,
+        probe=None,
+        raise_on_read=None,
+        raise_on_probe=None,
+    ):
+        if result is None:
+            result = ExplicitTransportSuccess(
+                {
+                    "holdings": "opaque-holdings",
+                    "account": "opaque-account",
+                }
+            )
+        if probe is None:
+            probe = ExplicitHealthProbe("available", None)
+        self.result = result
+        self.probe_result = probe
+        self.raise_on_read = raise_on_read
+        self.raise_on_probe = raise_on_probe
+        self.reads = []
+        self.probes = []
+
+    def read(self, binding, credential, request):
+        self.reads.append(
+            {
+                "binding": binding,
+                "credential": credential,
+                "request": request,
+            }
+        )
+        if self.raise_on_read is not None:
+            raise self.raise_on_read
+        return self.result
+
+    def probe(self, binding):
+        self.probes.append(binding)
+        if self.raise_on_probe is not None:
+            raise self.raise_on_probe
+        return self.probe_result
+
+
+def broker_credential_supplier(secret="broker-outbound-secret"):
+    def supply(credential_ref):
+        if credential_ref != "broker-cred-ref":
             raise ValueError("unknown credential_ref")
         return secret
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from ProviderGateway.models.types import (
+    ExplicitBrokerCollectRequest,
     ExplicitCollectOutcome,
     ExplicitCollectRequest,
     ExplicitProviderHealthSnapshot,
@@ -23,7 +24,7 @@ class ProviderInterface(ABC):
     @abstractmethod
     def collect(
         self,
-        request: ExplicitCollectRequest,
+        request: ExplicitCollectRequest | ExplicitBrokerCollectRequest,
     ) -> ExplicitCollectOutcome:
         raise NotImplementedError
 

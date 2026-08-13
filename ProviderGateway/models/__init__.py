@@ -1,4 +1,7 @@
 from ProviderGateway.models.types import (
+    ExplicitBrokerAdapterBinding,
+    ExplicitBrokerCollectRequest,
+    ExplicitBrokerParameterProfile,
     ExplicitCollectOutcome,
     ExplicitCollectRequest,
     ExplicitErrorDiagnostics,
@@ -10,6 +13,7 @@ from ProviderGateway.models.types import (
 )
 from ProviderGateway.models.vocabularies import (
     AVAILABILITY_VALUES,
+    BROKER_REQUEST_KIND_VALUES,
     ENVELOPE_STATUS_VALUES,
     FAILURE_CLASS_VALUES,
     RESERVED_KB_OPEN_API_PROVIDER_ID,
@@ -18,10 +22,14 @@ from ProviderGateway.models.vocabularies import (
 
 __all__ = [
     "AVAILABILITY_VALUES",
+    "BROKER_REQUEST_KIND_VALUES",
     "ENVELOPE_STATUS_VALUES",
     "FAILURE_CLASS_VALUES",
     "RESERVED_KB_OPEN_API_PROVIDER_ID",
     "SOURCE_CLASS_VALUES",
+    "ExplicitBrokerAdapterBinding",
+    "ExplicitBrokerCollectRequest",
+    "ExplicitBrokerParameterProfile",
     "ExplicitCollectOutcome",
     "ExplicitCollectRequest",
     "ExplicitErrorDiagnostics",

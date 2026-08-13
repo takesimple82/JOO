@@ -5,6 +5,7 @@ import inspect
 import unittest
 from pathlib import Path
 
+from ProviderGateway.adapters.kb_open_api import KbOpenApiAdapter
 from ProviderGateway.adapters.market_api import MarketApiAdapter
 from ProviderGateway.models import (
     RESERVED_KB_OPEN_API_PROVIDER_ID,
@@ -38,8 +39,11 @@ class PackageBoundaryTests(unittest.TestCase):
         )
 
     def test_kb_open_api_adapter_file_is_absent(self):
-        self.assertFalse(
-            (ROOT / "adapters" / "kb_open_api.py").exists()
+        path = ROOT / "adapters" / "kb_open_api.py"
+        self.assertTrue(path.exists())
+        self.assertTrue(hasattr(KbOpenApiAdapter, "collect"))
+        self.assertTrue(
+            issubclass(KbOpenApiAdapter, ProviderInterface)
         )
 
     def test_no_forbidden_package_imports(self):
@@ -108,6 +112,7 @@ class PackageBoundaryTests(unittest.TestCase):
         collect_source = (
             (ROOT / "ingress.py").read_text()
             + (ROOT / "adapters" / "market_api.py").read_text()
+            + (ROOT / "adapters" / "kb_open_api.py").read_text()
             + (ROOT / "health.py").read_text()
         )
         lowered = collect_source.casefold()
@@ -157,13 +162,50 @@ class PackageBoundaryTests(unittest.TestCase):
         self.assertNotIn("broker_fact", source)
         self.assertNotIn("research_ai", source)
 
+    def test_adapter_source_declares_broker_fact_literally(self):
+        source = inspect.getsource(KbOpenApiAdapter)
+        self.assertIn('return "broker_fact"', source)
+        self.assertNotIn("market_fact", source)
+        self.assertNotIn("research_ai", source)
+
     def test_provider_interface_surface(self):
         self.assertTrue(
             issubclass(MarketApiAdapter, ProviderInterface)
         )
         self.assertTrue(
+            issubclass(KbOpenApiAdapter, ProviderInterface)
+        )
+        self.assertTrue(
             inspect.isabstract(ProviderInterface)
         )
+
+    def test_collect_union_is_the_only_interface_mutation(self):
+        source = inspect.getsource(ProviderInterface)
+        self.assertIn(
+            "ExplicitCollectRequest | ExplicitBrokerCollectRequest",
+            source,
+        )
+        self.assertEqual(source.count("def collect("), 1)
+        self.assertIn("def health(", source)
+        self.assertIn("def provider_id", source)
+        self.assertIn("def declared_source_class", source)
+        self.assertNotIn("def collect_broker", source)
+        self.assertNotIn("def collect_market", source)
+
+    def test_kb_open_api_does_not_import_market_path_types(self):
+        source = (
+            ROOT / "adapters" / "kb_open_api.py"
+        ).read_text()
+        for forbidden in (
+            "MarketTransport",
+            "ExplicitMarketAdapterBinding",
+            "ExplicitCollectRequest",
+            "MarketApiAdapter",
+            "FactStore",
+            "MarketSnapshotProducer",
+            "PortfolioSnapshot",
+        ):
+            self.assertNotIn(forbidden, source)
 
     def test_readme_states_identity_and_non_responsibilities(self):
         readme = (ROOT / "README.md").read_text()
@@ -194,6 +236,10 @@ class PackageBoundaryTests(unittest.TestCase):
             "MarketGateway",
             "QuoteIngress",
             "MarketFactStore",
+            "BrokerAdapter",
+            "BrokerGateway",
+            "KbGateway",
+            "BrokerFactStore",
         ):
             self.assertFalse((parent / name).exists())
 

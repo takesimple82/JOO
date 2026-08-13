@@ -5,6 +5,8 @@ from datetime import datetime
 from typing import Protocol
 
 from ProviderGateway.models.types import (
+    ExplicitBrokerAdapterBinding,
+    ExplicitBrokerCollectRequest,
     ExplicitCollectRequest,
     ExplicitMarketAdapterBinding,
 )
@@ -39,6 +41,22 @@ class MarketTransport(Protocol):
     def probe(
         self,
         binding: ExplicitMarketAdapterBinding,
+    ) -> ExplicitHealthProbe | ExplicitTransportFailure:
+        ...
+
+
+class BrokerTransport(Protocol):
+    def read(
+        self,
+        binding: ExplicitBrokerAdapterBinding,
+        credential: str,
+        request: ExplicitBrokerCollectRequest,
+    ) -> ExplicitTransportSuccess | ExplicitTransportFailure:
+        ...
+
+    def probe(
+        self,
+        binding: ExplicitBrokerAdapterBinding,
     ) -> ExplicitHealthProbe | ExplicitTransportFailure:
         ...
 

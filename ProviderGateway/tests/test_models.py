@@ -11,10 +11,14 @@ from datetime import datetime, timezone
 
 from ProviderGateway.models import (
     AVAILABILITY_VALUES,
+    BROKER_REQUEST_KIND_VALUES,
     ENVELOPE_STATUS_VALUES,
     FAILURE_CLASS_VALUES,
     RESERVED_KB_OPEN_API_PROVIDER_ID,
     SOURCE_CLASS_VALUES,
+    ExplicitBrokerAdapterBinding,
+    ExplicitBrokerCollectRequest,
+    ExplicitBrokerParameterProfile,
     ExplicitCollectOutcome,
     ExplicitCollectRequest,
     ExplicitErrorDiagnostics,
@@ -27,6 +31,9 @@ from ProviderGateway.models import (
 from ProviderGateway.tests.builders import (
     FIXED_CLOCK,
     make_binding,
+    make_broker_binding,
+    make_broker_profile,
+    make_broker_request,
     make_diagnostics,
     make_envelope,
     make_failure,
@@ -298,6 +305,161 @@ class ModelContractTests(unittest.TestCase):
                 None,
                 extra="no",
             )
+
+    def test_broker_request_kind_vocabulary_is_exact(self):
+        self.assertEqual(
+            BROKER_REQUEST_KIND_VALUES,
+            ("holdings", "balances", "account_state"),
+        )
+        self.assertNotIn("orders", BROKER_REQUEST_KIND_VALUES)
+        self.assertNotIn("fills", BROKER_REQUEST_KIND_VALUES)
+
+    def test_broker_profile_field_contract(self):
+        self._assert_frozen_model(
+            ExplicitBrokerParameterProfile,
+            [
+                "profile_id",
+                "account_selector",
+                "request_set",
+            ],
+            {
+                "profile_id": "str",
+                "account_selector": "str",
+                "request_set": "tuple[str, ...]",
+            },
+        )
+
+    def test_broker_binding_field_contract(self):
+        self._assert_frozen_model(
+            ExplicitBrokerAdapterBinding,
+            [
+                "provider_id",
+                "credential_ref",
+                "parameter_profile",
+            ],
+            {
+                "provider_id": "str",
+                "credential_ref": "str",
+                "parameter_profile": (
+                    "ExplicitBrokerParameterProfile"
+                ),
+            },
+        )
+
+    def test_broker_request_field_contract(self):
+        self._assert_frozen_model(
+            ExplicitBrokerCollectRequest,
+            [
+                "envelope_id",
+                "request_correlation_id",
+                "binding",
+                "request_kind",
+            ],
+            {
+                "envelope_id": "str",
+                "request_correlation_id": "str | None",
+                "binding": "ExplicitBrokerAdapterBinding",
+                "request_kind": "str",
+            },
+        )
+
+    def test_broker_types_have_no_dummy_market_fields(self):
+        forbidden = (
+            "venue_target",
+            "session_selector",
+            "timezone_selector",
+            "calendar_selector",
+        )
+        for model in (
+            ExplicitBrokerParameterProfile,
+            ExplicitBrokerAdapterBinding,
+            ExplicitBrokerCollectRequest,
+        ):
+            names = [field.name for field in fields(model)]
+            for name in forbidden:
+                self.assertNotIn(name, names)
+        with self.assertRaises(TypeError):
+            ExplicitBrokerParameterProfile(
+                "profile-001",
+                "account-001",
+                ("holdings",),
+                venue_target="x",
+            )
+        with self.assertRaises(TypeError):
+            ExplicitBrokerAdapterBinding(
+                "kb_open_api",
+                "broker-cred-ref",
+                make_broker_profile(),
+                session_selector="x",
+            )
+        with self.assertRaises(TypeError):
+            ExplicitBrokerCollectRequest(
+                "envelope-001",
+                None,
+                make_broker_binding(),
+                "holdings",
+                timezone_selector="x",
+            )
+
+    def test_broker_collected_at_is_not_a_request_field(self):
+        names = [
+            field.name
+            for field in fields(ExplicitBrokerCollectRequest)
+        ]
+        self.assertNotIn("collected_at", names)
+        self.assertEqual(
+            names,
+            [
+                "envelope_id",
+                "request_correlation_id",
+                "binding",
+                "request_kind",
+            ],
+        )
+
+    def test_no_defaults_on_broker_models(self):
+        for model in (
+            ExplicitBrokerParameterProfile,
+            ExplicitBrokerAdapterBinding,
+            ExplicitBrokerCollectRequest,
+        ):
+            for field in fields(model):
+                self.assertIs(field.default, MISSING)
+                self.assertIs(field.default_factory, MISSING)
+
+    def test_broker_records_are_frozen_and_hashable(self):
+        first = make_broker_request()
+        same = make_broker_request()
+        different = make_broker_request(
+            envelope_id="envelope-002"
+        )
+        self.assertEqual(first, same)
+        self.assertNotEqual(first, different)
+        with self.assertRaises(FrozenInstanceError):
+            first.envelope_id = "replacement"
+        with self.assertRaises(FrozenInstanceError):
+            first.request_kind = "balances"
+        self.assertEqual(
+            hash(make_broker_profile()),
+            hash(make_broker_profile()),
+        )
+        self.assertEqual(
+            hash(make_broker_binding()),
+            hash(make_broker_binding()),
+        )
+        self.assertEqual(
+            hash(make_broker_request()),
+            hash(make_broker_request()),
+        )
+
+    def test_broker_request_set_order_is_preserved(self):
+        request_set = ("account_state", "holdings")
+        profile = make_broker_profile(request_set=request_set)
+        self.assertIs(profile.request_set, request_set)
+        self.assertEqual(
+            profile.request_set,
+            ("account_state", "holdings"),
+        )
 
     def _assert_frozen_model(
         self,

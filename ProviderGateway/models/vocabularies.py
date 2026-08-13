@@ -28,3 +28,9 @@ FAILURE_CLASS_VALUES = (
 )
 
 RESERVED_KB_OPEN_API_PROVIDER_ID = "kb_open_api"
+
+BROKER_REQUEST_KIND_VALUES = (
+    "holdings",
+    "balances",
+    "account_state",
+)

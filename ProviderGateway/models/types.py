@@ -68,3 +68,25 @@ class ExplicitCollectOutcome:
     result_kind: str
     envelope: ExplicitProviderPayloadEnvelope | None
     failure: ExplicitProviderFailureSignal | None
+
+
+@dataclass(frozen=True)
+class ExplicitBrokerParameterProfile:
+    profile_id: str
+    account_selector: str
+    request_set: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ExplicitBrokerAdapterBinding:
+    provider_id: str
+    credential_ref: str
+    parameter_profile: ExplicitBrokerParameterProfile
+
+
+@dataclass(frozen=True)
+class ExplicitBrokerCollectRequest:
+    envelope_id: str
+    request_correlation_id: str | None
+    binding: ExplicitBrokerAdapterBinding
+    request_kind: str

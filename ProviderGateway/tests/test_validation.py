@@ -6,9 +6,13 @@ from unittest.mock import patch
 
 from ProviderGateway.models import (
     AVAILABILITY_VALUES,
+    BROKER_REQUEST_KIND_VALUES,
     ENVELOPE_STATUS_VALUES,
     FAILURE_CLASS_VALUES,
     SOURCE_CLASS_VALUES,
+    ExplicitBrokerAdapterBinding,
+    ExplicitBrokerCollectRequest,
+    ExplicitBrokerParameterProfile,
     ExplicitCollectOutcome,
     ExplicitErrorDiagnostics,
     ExplicitProviderPayloadEnvelope,
@@ -16,6 +20,9 @@ from ProviderGateway.models import (
 from ProviderGateway.tests.builders import (
     FIXED_CLOCK,
     make_binding,
+    make_broker_binding,
+    make_broker_profile,
+    make_broker_request,
     make_diagnostics,
     make_envelope,
     make_failure,
@@ -24,6 +31,10 @@ from ProviderGateway.tests.builders import (
     make_request,
 )
 from ProviderGateway.validation import (
+    validate_broker_fact_success_envelope,
+    validate_explicit_broker_adapter_binding,
+    validate_explicit_broker_collect_request,
+    validate_explicit_broker_parameter_profile,
     validate_explicit_collect_outcome,
     validate_explicit_collect_request,
     validate_explicit_error_diagnostics,
@@ -49,6 +60,18 @@ class TupleSubclass(tuple):
 
 
 class EnvelopeSubclass(ExplicitProviderPayloadEnvelope):
+    pass
+
+
+class BrokerProfileSubclass(ExplicitBrokerParameterProfile):
+    pass
+
+
+class BrokerBindingSubclass(ExplicitBrokerAdapterBinding):
+    pass
+
+
+class BrokerRequestSubclass(ExplicitBrokerCollectRequest):
     pass
 
 
@@ -598,6 +621,342 @@ class ValidationOrderTests(unittest.TestCase):
             with self.assertRaises(ValueError) as caught:
                 validate_explicit_collect_request(
                     make_request()
+                )
+        self.assertIs(caught.exception, error)
+
+
+class BrokerValidationSuccessTests(unittest.TestCase):
+    def test_broker_validators_return_none(self):
+        self.assertIsNone(
+            validate_explicit_broker_parameter_profile(
+                make_broker_profile()
+            )
+        )
+        self.assertIsNone(
+            validate_explicit_broker_adapter_binding(
+                make_broker_binding()
+            )
+        )
+        self.assertIsNone(
+            validate_explicit_broker_collect_request(
+                make_broker_request()
+            )
+        )
+        self.assertIsNone(
+            validate_broker_fact_success_envelope(
+                make_envelope(
+                    provider_id="kb_open_api",
+                    source_class="broker_fact",
+                )
+            )
+        )
+
+    def test_each_authorized_kind_is_accepted(self):
+        for request_kind in BROKER_REQUEST_KIND_VALUES:
+            with self.subTest(request_kind=request_kind):
+                self.assertIsNone(
+                    validate_explicit_broker_collect_request(
+                        make_broker_request(
+                            request_kind=request_kind
+                        )
+                    )
+                )
+
+    def test_duplicate_request_set_kinds_are_preserved(self):
+        profile = make_broker_profile(
+            request_set=("holdings", "holdings")
+        )
+        self.assertIsNone(
+            validate_explicit_broker_parameter_profile(profile)
+        )
+        self.assertEqual(
+            profile.request_set,
+            ("holdings", "holdings"),
+        )
+
+    def test_surrounding_whitespace_is_preserved(self):
+        selector = " account-001 "
+        profile = make_broker_profile(
+            account_selector=selector
+        )
+        self.assertIsNone(
+            validate_explicit_broker_parameter_profile(profile)
+        )
+        self.assertIs(profile.account_selector, selector)
+
+
+class BrokerExactTypeAndMembershipTests(unittest.TestCase):
+    def test_profile_requires_exact_model_type_first(self):
+        invalid = (
+            None,
+            object(),
+            {},
+            BrokerProfileSubclass(
+                "broker-profile-001",
+                "opaque-account-selector",
+                ("holdings",),
+            ),
+        )
+        for value in invalid:
+            with self.subTest(value_type=type(value)):
+                with self.assertRaisesRegex(
+                    TypeError,
+                    "^profile must be "
+                    "ExplicitBrokerParameterProfile$",
+                ):
+                    validate_explicit_broker_parameter_profile(
+                        value
+                    )
+
+    def test_request_set_rules(self):
+        with self.assertRaisesRegex(
+            TypeError,
+            "^request_set must be tuple$",
+        ):
+            validate_explicit_broker_parameter_profile(
+                make_broker_profile(request_set=["holdings"])
+            )
+        with self.assertRaisesRegex(
+            TypeError,
+            "^request_set must be tuple$",
+        ):
+            validate_explicit_broker_parameter_profile(
+                make_broker_profile(
+                    request_set=TupleSubclass(("holdings",))
+                )
+            )
+        with self.assertRaisesRegex(
+            ValueError,
+            "^request_set must not be empty$",
+        ):
+            validate_explicit_broker_parameter_profile(
+                make_broker_profile(request_set=())
+            )
+        with self.assertRaisesRegex(
+            TypeError,
+            r"^request_set\[0\] must be str$",
+        ):
+            validate_explicit_broker_parameter_profile(
+                make_broker_profile(request_set=(1,))
+            )
+        with self.assertRaisesRegex(
+            ValueError,
+            r"^request_set\[0\] must not be blank$",
+        ):
+            validate_explicit_broker_parameter_profile(
+                make_broker_profile(request_set=(" ",))
+            )
+        with self.assertRaisesRegex(
+            ValueError,
+            r"^request_set\[0\] must be one of "
+            r"BROKER_REQUEST_KIND_VALUES$",
+        ):
+            validate_explicit_broker_parameter_profile(
+                make_broker_profile(request_set=("orders",))
+            )
+
+    def test_rejects_orders_and_fills_as_request_kind(self):
+        for request_kind in ("orders", "fills", "last_price"):
+            with self.subTest(request_kind=request_kind):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "^request_kind must be one of "
+                    "BROKER_REQUEST_KIND_VALUES$",
+                ):
+                    validate_explicit_broker_collect_request(
+                        make_broker_request(
+                            request_kind=request_kind
+                        )
+                    )
+
+    def test_request_kind_must_be_in_request_set(self):
+        binding = make_broker_binding(
+            parameter_profile=make_broker_profile(
+                request_set=("balances",)
+            )
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "^request_kind must be in request_set$",
+        ):
+            validate_explicit_broker_collect_request(
+                make_broker_request(
+                    binding=binding,
+                    request_kind="holdings",
+                )
+            )
+
+    def test_binding_rejects_non_kb_provider_id(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "^provider_id must be kb_open_api$",
+        ):
+            validate_explicit_broker_adapter_binding(
+                make_broker_binding(
+                    provider_id="other-broker"
+                )
+            )
+
+    def test_binding_rejects_blank_before_kb_id(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "^provider_id must not be blank$",
+        ):
+            validate_explicit_broker_adapter_binding(
+                make_broker_binding(provider_id=" ")
+            )
+
+    def test_binding_requires_exact_type(self):
+        with self.assertRaisesRegex(
+            TypeError,
+            "^binding must be ExplicitBrokerAdapterBinding$",
+        ):
+            validate_explicit_broker_adapter_binding(
+                BrokerBindingSubclass(
+                    "kb_open_api",
+                    "broker-cred-ref",
+                    make_broker_profile(),
+                )
+            )
+
+    def test_request_requires_exact_type(self):
+        with self.assertRaisesRegex(
+            TypeError,
+            "^request must be ExplicitBrokerCollectRequest$",
+        ):
+            validate_explicit_broker_collect_request(
+                BrokerRequestSubclass(
+                    "envelope-001",
+                    None,
+                    make_broker_binding(),
+                    "holdings",
+                )
+            )
+        with self.assertRaisesRegex(
+            TypeError,
+            "^request must be ExplicitBrokerCollectRequest$",
+        ):
+            validate_explicit_broker_collect_request(
+                make_request()
+            )
+
+
+class BrokerFactSuccessEnvelopeTests(unittest.TestCase):
+    def test_rejects_success_with_non_broker_fact(self):
+        for source_class in ("market_fact", "research_ai"):
+            with self.subTest(source_class=source_class):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "^source_class must be broker_fact$",
+                ):
+                    validate_broker_fact_success_envelope(
+                        make_envelope(
+                            provider_id="kb_open_api",
+                            source_class=source_class,
+                        )
+                    )
+
+    def test_rejects_failure_status(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "^status must be success$",
+        ):
+            validate_broker_fact_success_envelope(
+                make_envelope(
+                    provider_id="kb_open_api",
+                    source_class="broker_fact",
+                    status="failure",
+                    payload=None,
+                    error_diagnostics=make_diagnostics(),
+                )
+            )
+
+    def test_rejects_non_kb_provider_id(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "^provider_id must be kb_open_api$",
+        ):
+            validate_broker_fact_success_envelope(
+                make_envelope(
+                    provider_id="market-provider-001",
+                    source_class="broker_fact",
+                )
+            )
+
+    def test_market_success_still_rejects_kb_provider_id(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "^provider_id must not be kb_open_api$",
+        ):
+            validate_market_fact_success_envelope(
+                make_envelope(provider_id="kb_open_api")
+            )
+
+    def test_market_binding_still_rejects_kb_provider_id(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "^provider_id must not be kb_open_api$",
+        ):
+            validate_explicit_market_adapter_binding(
+                make_binding(provider_id="kb_open_api")
+            )
+
+
+class BrokerValidationOrderTests(unittest.TestCase):
+    def test_first_failure_wins_on_profile(self):
+        profile = make_broker_profile(
+            profile_id="",
+            account_selector="",
+            request_set=(),
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "^profile_id must not be blank$",
+        ):
+            validate_explicit_broker_parameter_profile(profile)
+
+    def test_upstream_profile_exception_is_unchanged(self):
+        error = ValueError("broker profile failure")
+        binding = make_broker_binding()
+        with patch(
+            "ProviderGateway.validation.validators"
+            ".validate_explicit_broker_parameter_profile",
+            side_effect=error,
+        ):
+            with self.assertRaises(ValueError) as caught:
+                validate_explicit_broker_adapter_binding(
+                    binding
+                )
+        self.assertIs(caught.exception, error)
+
+    def test_upstream_binding_exception_is_unchanged(self):
+        error = ValueError("broker binding failure")
+        with patch(
+            "ProviderGateway.validation.validators"
+            ".validate_explicit_broker_adapter_binding",
+            side_effect=error,
+        ):
+            with self.assertRaises(ValueError) as caught:
+                validate_explicit_broker_collect_request(
+                    make_broker_request()
+                )
+        self.assertIs(caught.exception, error)
+
+    def test_broker_fact_success_propagates_envelope_error(
+        self,
+    ):
+        error = ValueError("envelope failure")
+        with patch(
+            "ProviderGateway.validation.validators"
+            ".validate_explicit_provider_payload_envelope",
+            side_effect=error,
+        ):
+            with self.assertRaises(ValueError) as caught:
+                validate_broker_fact_success_envelope(
+                    make_envelope(
+                        provider_id="kb_open_api",
+                        source_class="broker_fact",
+                    )
                 )
         self.assertIs(caught.exception, error)
 

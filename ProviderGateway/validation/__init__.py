@@ -1,4 +1,8 @@
 from ProviderGateway.validation.validators import (
+    validate_broker_fact_success_envelope,
+    validate_explicit_broker_adapter_binding,
+    validate_explicit_broker_collect_request,
+    validate_explicit_broker_parameter_profile,
     validate_explicit_collect_outcome,
     validate_explicit_collect_request,
     validate_explicit_error_diagnostics,
@@ -11,6 +15,10 @@ from ProviderGateway.validation.validators import (
 )
 
 __all__ = [
+    "validate_broker_fact_success_envelope",
+    "validate_explicit_broker_adapter_binding",
+    "validate_explicit_broker_collect_request",
+    "validate_explicit_broker_parameter_profile",
     "validate_explicit_collect_outcome",
     "validate_explicit_collect_request",
     "validate_explicit_error_diagnostics",

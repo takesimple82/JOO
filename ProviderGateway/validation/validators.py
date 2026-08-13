@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from ProviderGateway.models.types import (
+    ExplicitBrokerAdapterBinding,
+    ExplicitBrokerCollectRequest,
+    ExplicitBrokerParameterProfile,
     ExplicitCollectOutcome,
     ExplicitCollectRequest,
     ExplicitErrorDiagnostics,
@@ -12,6 +15,7 @@ from ProviderGateway.models.types import (
 )
 from ProviderGateway.models.vocabularies import (
     AVAILABILITY_VALUES,
+    BROKER_REQUEST_KIND_VALUES,
     ENVELOPE_STATUS_VALUES,
     FAILURE_CLASS_VALUES,
     RESERVED_KB_OPEN_API_PROVIDER_ID,
@@ -304,3 +308,110 @@ def validate_explicit_collect_outcome(
     )
     if outcome.envelope is not None:
         raise TypeError("envelope must be None")
+
+
+def validate_explicit_broker_parameter_profile(
+    profile: ExplicitBrokerParameterProfile,
+) -> None:
+    require_exact_type(
+        "profile",
+        profile,
+        ExplicitBrokerParameterProfile,
+    )
+    require_nonblank_string(
+        "profile_id",
+        profile.profile_id,
+    )
+    require_nonblank_string(
+        "account_selector",
+        profile.account_selector,
+    )
+    require_tuple_of_nonblank_str(
+        "request_set",
+        profile.request_set,
+    )
+    for index, item in enumerate(profile.request_set):
+        require_membership(
+            f"request_set[{index}]",
+            item,
+            BROKER_REQUEST_KIND_VALUES,
+            "BROKER_REQUEST_KIND_VALUES",
+        )
+
+
+def validate_explicit_broker_adapter_binding(
+    binding: ExplicitBrokerAdapterBinding,
+) -> None:
+    require_exact_type(
+        "binding",
+        binding,
+        ExplicitBrokerAdapterBinding,
+    )
+    require_nonblank_string(
+        "provider_id",
+        binding.provider_id,
+    )
+    if binding.provider_id != RESERVED_KB_OPEN_API_PROVIDER_ID:
+        raise ValueError("provider_id must be kb_open_api")
+    require_nonblank_string(
+        "credential_ref",
+        binding.credential_ref,
+    )
+    require_exact_type(
+        "parameter_profile",
+        binding.parameter_profile,
+        ExplicitBrokerParameterProfile,
+    )
+    validate_explicit_broker_parameter_profile(
+        binding.parameter_profile
+    )
+
+
+def validate_explicit_broker_collect_request(
+    request: ExplicitBrokerCollectRequest,
+) -> None:
+    require_exact_type(
+        "request",
+        request,
+        ExplicitBrokerCollectRequest,
+    )
+    require_nonblank_string(
+        "envelope_id",
+        request.envelope_id,
+    )
+    require_optional_nonblank_string(
+        "request_correlation_id",
+        request.request_correlation_id,
+    )
+    require_exact_type(
+        "binding",
+        request.binding,
+        ExplicitBrokerAdapterBinding,
+    )
+    validate_explicit_broker_adapter_binding(request.binding)
+    require_membership(
+        "request_kind",
+        request.request_kind,
+        BROKER_REQUEST_KIND_VALUES,
+        "BROKER_REQUEST_KIND_VALUES",
+    )
+    if (
+        request.request_kind
+        not in request.binding.parameter_profile.request_set
+    ):
+        raise ValueError("request_kind must be in request_set")
+
+
+def validate_broker_fact_success_envelope(
+    envelope: ExplicitProviderPayloadEnvelope,
+) -> None:
+    validate_explicit_provider_payload_envelope(envelope)
+    if envelope.status != "success":
+        raise ValueError("status must be success")
+    if envelope.source_class != "broker_fact":
+        raise ValueError("source_class must be broker_fact")
+    if (
+        envelope.provider_id
+        != RESERVED_KB_OPEN_API_PROVIDER_ID
+    ):
+        raise ValueError("provider_id must be kb_open_api")
