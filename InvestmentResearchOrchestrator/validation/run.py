@@ -39,6 +39,9 @@ def _validate_phase_status_consistency(run: IRORun) -> None:
             IRORunStatus.SHORT_CIRCUITED_NO_MATERIAL_DELTA
         ),
         IRORunPhase.FAILED: IRORunStatus.FAILED,
+        IRORunPhase.ESCALATED_HUMAN_REVIEW: (
+            IRORunStatus.ESCALATED_HUMAN_REVIEW
+        ),
     }
     if run.phase in terminal_phases:
         expected = terminal_phases[run.phase]

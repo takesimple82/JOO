@@ -40,8 +40,17 @@ from InvestmentResearchOrchestrator.evidence_store import (
 from InvestmentResearchOrchestrator.execution_adapter import (
     M22Adapter,
 )
+from InvestmentResearchOrchestrator.contradiction_engine import (
+    ContradictionEngine,
+)
+from InvestmentResearchOrchestrator.memory_comparison import (
+    MemoryComparison,
+)
 from InvestmentResearchOrchestrator.memory_comparison_stub import (
     MemoryComparisonStub,
+)
+from InvestmentResearchOrchestrator.re_research import (
+    make_re_research_budget,
 )
 from InvestmentResearchOrchestrator.models.assignment import (
     StaticRoutingTable,
@@ -375,7 +384,11 @@ class MemoryAndCoordinatorTests(unittest.TestCase):
             ),
             evidence_collector=EvidenceCollector(),
             evidence_store=EvidenceStore(tmp),
-            memory_stub=MemoryComparisonStub(),
+            memory_comparison=MemoryComparison(),
+            contradiction_engine=ContradictionEngine(),
+            re_research_budget=make_re_research_budget(
+                max_attempts=1
+            ),
         )
 
 

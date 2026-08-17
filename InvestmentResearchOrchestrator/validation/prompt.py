@@ -57,7 +57,7 @@ def validate_prompt_freeze_artifact(
         artifact.prompt_hash,
     )
     require_int("attempt_index", artifact.attempt_index)
-    if artifact.attempt_index != 0:
+    if artifact.attempt_index < 0:
         raise ValueError(
-            "attempt_index must be 0 for IRO-M1"
+            "attempt_index must be >= 0"
         )

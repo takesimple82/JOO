@@ -241,6 +241,97 @@ class ScannerPlannerTests(unittest.TestCase):
             "WATCHLIST_STRUCTURAL",
         )
 
+    def test_plan_re_research_one_to_one_and_unknown_fails(self):
+        from InvestmentResearchOrchestrator.models.enums import (
+            ReResearchReasonCode,
+        )
+        from InvestmentResearchOrchestrator.models.re_research import (
+            ReResearchRequest,
+            ReResearchRequestSet,
+        )
+        from InvestmentResearchOrchestrator.models.scan import (
+            ScanDelta,
+            ScanDeltaSet,
+        )
+
+        request_set = ReResearchRequestSet(
+            run_id="run-003",
+            attempt=1,
+            requests=(
+                ReResearchRequest(
+                    request_id="req-1",
+                    subject_key="held-a",
+                    reason_code=(
+                        ReResearchReasonCode
+                        .MULTI_COMMITTEE_STATEMENT_CONFLICT
+                    ),
+                    task_type="HOLDING_STRUCTURAL",
+                    source_case_ids=("case-1",),
+                    priority="P0",
+                ),
+            ),
+        )
+        plan = ResearchPlanner().plan_re_research(request_set)
+        self.assertEqual(len(plan.units), 1)
+        self.assertEqual(
+            plan.units[0].research_id,
+            "run-003:attempt:1:unit:0:held-a",
+        )
+        self.assertEqual(plan.units[0].priority, "P0")
+
+        scan = ScanDeltaSet(
+            run_id="run-003",
+            deltas=(
+                ScanDelta(
+                    subject_id="held-a",
+                    change_class=ScanChangeClass.QUANTITY_CHANGED,
+                    materiality_basis=ScanChangeClass.QUANTITY_CHANGED,
+                    subject_class=SubjectClass.HOLDING,
+                ),
+            ),
+        )
+        skipped = ResearchPlanner().plan_re_research(
+            ReResearchRequestSet(
+                run_id="run-003",
+                attempt=1,
+                requests=(
+                    ReResearchRequest(
+                        request_id="req-2",
+                        subject_key="missing",
+                        reason_code=(
+                            ReResearchReasonCode.CONFIDENCE_INSUFFICIENT
+                        ),
+                        task_type="HOLDING_STRUCTURAL",
+                        source_case_ids=("case-2",),
+                        priority="P0",
+                    ),
+                ),
+            ),
+            scan_context=scan,
+        )
+        self.assertEqual(skipped.units, ())
+        self.assertEqual(len(skipped.skips), 1)
+
+        with self.assertRaisesRegex(ValueError, "unknown task_type"):
+            ResearchPlanner().plan_re_research(
+                ReResearchRequestSet(
+                    run_id="run-003",
+                    attempt=1,
+                    requests=(
+                        ReResearchRequest(
+                            request_id="req-3",
+                            subject_key="held-a",
+                            reason_code=(
+                                ReResearchReasonCode.NUMERIC_CANDIDATE
+                            ),
+                            task_type="OPEN_ENDED_WEB",
+                            source_case_ids=("case-3",),
+                            priority="P0",
+                        ),
+                    ),
+                )
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

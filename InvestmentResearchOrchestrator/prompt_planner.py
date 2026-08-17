@@ -48,9 +48,9 @@ class PromptFreeze:
                 )
         if type(attempt_index) is not int:
             raise TypeError("attempt_index must be int")
-        if attempt_index != 0:
+        if attempt_index < 0:
             raise ValueError(
-                "attempt_index must be 0 for IRO-M1"
+                "attempt_index must be >= 0"
             )
 
         try:
@@ -89,7 +89,7 @@ class PromptFreeze:
             prompt_version=template.prompt_version,
             frozen_prompt_bytes=frozen_bytes,
             prompt_hash=prompt_hash,
-            attempt_index=0,
+            attempt_index=attempt_index,
         )
         validate_prompt_freeze_artifact(artifact)
         return artifact
