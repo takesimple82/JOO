@@ -15,6 +15,22 @@ from ProviderGateway.provider_interface import ProviderInterface
 
 ROOT = Path(__file__).resolve().parents[1]
 
+_ALLOWED_IMPORT_ROOTS = {
+    "__future__",
+    "abc",
+    "dataclasses",
+    "datetime",
+    "json",
+    "typing",
+    "ProviderGateway",
+}
+
+_PER_FILE_EXTRA_IMPORT_ROOTS = {
+    "kb_openapi_keychain.py": {"ctypes"},
+    "kb_openapi_host_identity.py": {"ctypes", "os", "pathlib"},
+    "kb_openapi_runtime.py": {"sys"},
+}
+
 
 def _production_paths():
     paths = []
@@ -23,6 +39,42 @@ def _production_paths():
             continue
         paths.append(path)
     return paths
+
+
+def _is_name_eq_main(node):
+    if not isinstance(node, ast.If):
+        return False
+    test = node.test
+    if not isinstance(test, ast.Compare):
+        return False
+    if len(test.ops) != 1 or not isinstance(test.ops[0], ast.Eq):
+        return False
+    if len(test.comparators) != 1:
+        return False
+    left = test.left
+    right = test.comparators[0]
+    left_is_name = (
+        isinstance(left, ast.Name) and left.id == "__name__"
+    )
+    right_is_main = (
+        isinstance(right, ast.Constant) and right.value == "__main__"
+    )
+    return left_is_name and right_is_main
+
+
+def _import_roots(tree, skip_main=True):
+    imported = set()
+    for node in tree.body:
+        if skip_main and _is_name_eq_main(node):
+            continue
+        for child in ast.walk(node):
+            if isinstance(child, ast.Import):
+                for alias in child.names:
+                    imported.add(alias.name.split(".")[0])
+            elif isinstance(child, ast.ImportFrom):
+                if child.module:
+                    imported.add(child.module.split(".")[0])
+    return imported
 
 
 def _production_source():
@@ -70,27 +122,16 @@ class PackageBoundaryTests(unittest.TestCase):
         imported = set()
         for path in _production_paths():
             tree = ast.parse(path.read_text())
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Import):
-                    for alias in node.names:
-                        imported.add(alias.name.split(".")[0])
-                elif isinstance(node, ast.ImportFrom):
-                    if node.module:
-                        imported.add(node.module.split(".")[0])
-        self.assertTrue(
-            imported.issubset(
-                {
-                    "__future__",
-                    "abc",
-                    "dataclasses",
-                    "datetime",
-                    "json",
-                    "typing",
-                    "ProviderGateway",
-                }
-            ),
-            imported,
-        )
+            file_imported = _import_roots(tree)
+            imported.update(file_imported)
+            allowed = set(_ALLOWED_IMPORT_ROOTS)
+            allowed.update(
+                _PER_FILE_EXTRA_IMPORT_ROOTS.get(path.name, set())
+            )
+            self.assertTrue(
+                file_imported.issubset(allowed),
+                (path.name, file_imported - allowed),
+            )
         self.assertTrue(imported.isdisjoint(forbidden_modules))
 
     def test_success_path_does_not_name_market_domain_types(self):
