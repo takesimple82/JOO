@@ -84,6 +84,7 @@ class PackageBoundaryTests(unittest.TestCase):
                     "abc",
                     "dataclasses",
                     "datetime",
+                    "json",
                     "typing",
                     "ProviderGateway",
                 }

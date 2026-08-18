@@ -157,3 +157,23 @@ This slice does **not** own or implement:
 
 Gateway emits a handoff candidate only. It does not append and does not
 call FactStore.
+
+## KB OpenAPI live factual transport
+
+`KbOpenApiLiveBrokerTransport` occupies the existing `BrokerTransport`
+port in `adapters/kb_openapi_live_broker_transport.py`.
+
+- First live fact is **SSQM2952** (`POST /api/v1/ssqm2952`) for
+  `request_kind="holdings"` only.
+- HTTP and clock are injected. Tests must use a fake HTTP seam. This
+  package does not ship a live network client.
+- Runtime credential JSON uses exact keys only, for example
+  `{"appKey":"<runtime>","appSecret":"<runtime>"}`. Tests use fake
+  placeholders only.
+- A successful read returns the parsed SSQM2952 object unchanged as raw
+  `broker_fact` evidence. It is **not** PF-M3-ready.
+- Transport does not own FactStore. A rightful caller may later append
+  the existing Gateway success envelope.
+- Real credentials and live KB Open API require a separately authorized
+  controlled pilot. This README does not authorize them.
+- No orders.

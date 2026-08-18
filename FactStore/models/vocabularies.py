@@ -21,4 +21,9 @@ FORBIDDEN_PAYLOAD_SECRET_FIELD_NAMES = (
     "refresh_token",
     "credential",
     "credentials",
+    "appKey",
+    "appSecret",
+    "hts_pwd",
+    "ac_pwd",
+    "hd_pin_no",
 )
