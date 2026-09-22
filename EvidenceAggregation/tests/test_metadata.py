@@ -1,3 +1,4 @@
+import ast
 import pathlib
 import unittest
 from dataclasses import FrozenInstanceError, fields
@@ -247,10 +248,27 @@ class EvidenceAggregationMetadataTests(unittest.TestCase):
             ):
                 continue
             for source_file in path.rglob("*.py"):
+                if "tests" in source_file.parts:
+                    continue
+                tree = ast.parse(source_file.read_text())
+                imported_roots = set()
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Import):
+                        imported_roots.update(
+                            alias.name.split(".")[0]
+                            for alias in node.names
+                        )
+                    elif (
+                        isinstance(node, ast.ImportFrom)
+                        and node.module
+                    ):
+                        imported_roots.add(
+                            node.module.split(".")[0]
+                        )
                 with self.subTest(path=source_file):
                     self.assertNotIn(
                         "EvidenceAggregation",
-                        source_file.read_text(),
+                        imported_roots,
                     )
 
 

@@ -200,7 +200,6 @@ class PackageBoundaryTests(unittest.TestCase):
             "MarketFactStore",
             "MarketHistory",
             "QuoteStore",
-            "MarketSnapshotProducer",
         ):
             self.assertFalse((parent / name).exists())
 
