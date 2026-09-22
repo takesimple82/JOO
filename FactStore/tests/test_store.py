@@ -30,6 +30,33 @@ from FactStore.tests.builders import (
 
 
 class AppendSuccessTests(unittest.TestCase):
+    def test_atomic_batch_preserves_order(self):
+        store = make_store()
+        first, second = store.append_batch(
+            (
+                make_broker_request(),
+                make_broker_request(
+                    fact_id="broker-fact-002",
+                    envelope=make_broker_envelope(
+                        envelope_id="broker-envelope-002"
+                    ),
+                ),
+            )
+        )
+        self.assertEqual(
+            store.list_by_source_class("broker_fact"),
+            (first, second),
+        )
+
+    def test_batch_rejects_wrong_type_and_empty(self):
+        store = make_store()
+        with self.assertRaisesRegex(TypeError, "^batch must be tuple$"):
+            store.append_batch([])
+        with self.assertRaisesRegex(
+            ValueError, "^batch must not be empty$"
+        ):
+            store.append_batch(())
+
     def test_append_market_fact_success(self):
         store = make_store()
         envelope = make_envelope()

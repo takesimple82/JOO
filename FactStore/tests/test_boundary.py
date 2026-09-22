@@ -74,6 +74,8 @@ class PackageBoundaryTests(unittest.TestCase):
                     "datetime",
                     "hashlib",
                     "json",
+                    "pathlib",
+                    "sqlite3",
                     "typing",
                     "ProviderGateway",
                     "FactStore",
@@ -157,6 +159,7 @@ class PackageBoundaryTests(unittest.TestCase):
             public,
             {
                 "append",
+                "append_batch",
                 "get_by_fact_id",
                 "list_by_source_identity",
                 "list_by_source_class",

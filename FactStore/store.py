@@ -33,35 +33,72 @@ class FactStore:
         self,
         request: ExplicitFactAppendRequest,
     ) -> ExplicitStoredFactRecord:
-        validate_explicit_fact_append_request(request)
-        validate_primary_fact_append_eligibility(request)
-        envelope = request.envelope
-        if self._engine.contains_fact_id(request.fact_id):
-            raise ValueError("fact_id already accepted")
-        if self._engine.contains_envelope_id(envelope.envelope_id):
-            raise ValueError("envelope_id already accepted")
-        if request.superseded_fact_id is not None:
-            if not self._engine.contains_fact_id(
-                request.superseded_fact_id
-            ):
-                raise ValueError("superseded_fact_id not found")
-            predecessor = self._engine.get_by_fact_id(
-                request.superseded_fact_id
-            )
-            if (
-                self._engine.successor_of(
+        return self.append_batch((request,))[0]
+
+    def append_batch(
+        self,
+        batch: tuple[ExplicitFactAppendRequest, ...],
+    ) -> tuple[ExplicitStoredFactRecord, ...]:
+        if type(batch) is not tuple:
+            raise TypeError("batch must be tuple")
+        if len(batch) == 0:
+            raise ValueError("batch must not be empty")
+        records = []
+        by_fact_id = {
+            record.fact_id: record
+            for record in self._engine.list_in_append_order()
+        }
+        envelope_ids = {
+            record.envelope_id for record in by_fact_id.values()
+        }
+        successor_of = {
+            record.superseded_fact_id: record.fact_id
+            for record in by_fact_id.values()
+            if record.superseded_fact_id is not None
+        }
+        for request in batch:
+            validate_explicit_fact_append_request(request)
+            validate_primary_fact_append_eligibility(request)
+            envelope = request.envelope
+            if request.fact_id in by_fact_id:
+                raise ValueError("fact_id already accepted")
+            if envelope.envelope_id in envelope_ids:
+                raise ValueError("envelope_id already accepted")
+            if request.superseded_fact_id is not None:
+                if request.superseded_fact_id not in by_fact_id:
+                    raise ValueError("superseded_fact_id not found")
+                predecessor = by_fact_id[
                     request.superseded_fact_id
+                ]
+                if request.superseded_fact_id in successor_of:
+                    raise ValueError(
+                        "superseded_fact_id already superseded"
+                    )
+                if predecessor.source_class != envelope.source_class:
+                    raise ValueError(
+                        "supersession source_class must match"
+                    )
+            record = self._build_record(
+                request,
+                self._read_appended_at(),
+            )
+            records.append(record)
+            by_fact_id[record.fact_id] = record
+            envelope_ids.add(record.envelope_id)
+            if record.superseded_fact_id is not None:
+                successor_of[record.superseded_fact_id] = (
+                    record.fact_id
                 )
-                is not None
-            ):
-                raise ValueError(
-                    "superseded_fact_id already superseded"
-                )
-            if predecessor.source_class != envelope.source_class:
-                raise ValueError(
-                    "supersession source_class must match"
-                )
-        appended_at = self._read_appended_at()
+        accepted = tuple(records)
+        self._engine.append_batch(accepted)
+        return accepted
+
+    @staticmethod
+    def _build_record(
+        request: ExplicitFactAppendRequest,
+        appended_at: datetime,
+    ) -> ExplicitStoredFactRecord:
+        envelope = request.envelope
         draft = ExplicitStoredFactRecord(
             request.fact_id,
             envelope.envelope_id,
@@ -87,7 +124,6 @@ class FactStore:
             compute_stored_fact_integrity_seal(draft),
         )
         validate_explicit_stored_fact_record(record)
-        self._engine.append(record)
         return record
 
     def get_by_fact_id(

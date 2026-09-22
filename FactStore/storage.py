@@ -14,25 +14,43 @@ class InMemoryAppendOnlyFactEngine:
         self._successor_of = {}
 
     def append(self, record: ExplicitStoredFactRecord) -> None:
-        validate_explicit_stored_fact_record(record)
-        if record.fact_id in self._by_fact_id:
-            raise ValueError("fact_id already accepted")
-        if record.envelope_id in self._envelope_ids:
-            raise ValueError("envelope_id already accepted")
-        if (
-            record.superseded_fact_id is not None
-            and record.superseded_fact_id in self._successor_of
-        ):
-            raise ValueError(
-                "superseded_fact_id already superseded"
-            )
-        self._records.append(record)
-        self._by_fact_id[record.fact_id] = record
-        self._envelope_ids.add(record.envelope_id)
-        if record.superseded_fact_id is not None:
-            self._successor_of[record.superseded_fact_id] = (
-                record.fact_id
-            )
+        self.append_batch((record,))
+
+    def append_batch(
+        self,
+        records: tuple[ExplicitStoredFactRecord, ...],
+    ) -> None:
+        if type(records) is not tuple:
+            raise TypeError("records must be tuple")
+        candidate_records = list(self._records)
+        candidate_by_fact_id = dict(self._by_fact_id)
+        candidate_envelope_ids = set(self._envelope_ids)
+        candidate_successor_of = dict(self._successor_of)
+        for record in records:
+            validate_explicit_stored_fact_record(record)
+            if record.fact_id in candidate_by_fact_id:
+                raise ValueError("fact_id already accepted")
+            if record.envelope_id in candidate_envelope_ids:
+                raise ValueError("envelope_id already accepted")
+            if (
+                record.superseded_fact_id is not None
+                and record.superseded_fact_id
+                in candidate_successor_of
+            ):
+                raise ValueError(
+                    "superseded_fact_id already superseded"
+                )
+            candidate_records.append(record)
+            candidate_by_fact_id[record.fact_id] = record
+            candidate_envelope_ids.add(record.envelope_id)
+            if record.superseded_fact_id is not None:
+                candidate_successor_of[
+                    record.superseded_fact_id
+                ] = record.fact_id
+        self._records = candidate_records
+        self._by_fact_id = candidate_by_fact_id
+        self._envelope_ids = candidate_envelope_ids
+        self._successor_of = candidate_successor_of
 
     def get_by_fact_id(
         self,

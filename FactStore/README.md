@@ -61,12 +61,14 @@ package-root re-export module.
 | Structural validators | `FactStore.validation` |
 | Injected UTC clock port | `FactStore.ports` |
 | `InMemoryAppendOnlyFactEngine` | `FactStore.storage` |
+| `SQLiteAppendOnlyFactEngine` | `FactStore.sqlite_storage` |
 | `FactStore` append / retrieval / integrity | `FactStore.store` |
 
 ```text
 FactStore
   __init__(utc_clock, storage_engine=None)
   append(request) -> ExplicitStoredFactRecord
+  append_batch(tuple[request, ...]) -> tuple[record, ...]
   get_by_fact_id(fact_id)
   list_by_source_identity(source_identity)
   list_by_source_class(source_class)
@@ -96,6 +98,13 @@ primary facts. Market\* objects and PF-M4 snapshots are not append inputs.
 
 ## Non-responsibilities
 
+The SQLite engine is the local durable backend. It uses one SQLite file,
+WAL journaling, `synchronous=FULL`, foreign-key and unique constraints, and
+one transaction per accepted batch. Restart replay is ordered by the stored
+append sequence and verifies every record seal and supersession link before
+the store is usable. Database triggers reject record updates and deletes.
+The in-memory engine remains available for deterministic unit tests.
+
 This slice does **not** own or implement:
 
 - `MarketSnapshotProducer` / PF-M4 composition / snapshot composition
@@ -112,7 +121,7 @@ This slice does **not** own or implement:
 - EvidenceProvenance `primary | secondary | unknown` taxonomy
 - secret storage, vaults, or credential persistence
 - auto-generated `fact_id`
-- durable filesystem / schema-as-code / tenancy
+- distributed storage, remote database infrastructure, or tenancy
 - freshness / staleness policy
 - Market Watch
 - IRO / Evidence Store ownership
