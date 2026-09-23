@@ -1,0 +1,6 @@
+from InvestmentDecisionVerticalSlice.cio_synthesis import synthesize_cio_decision
+from InvestmentDecisionVerticalSlice.ev_integration import calculate_admitted_ev
+from InvestmentDecisionVerticalSlice.opportunity_comparison import compare_opportunities
+from InvestmentDecisionVerticalSlice.semantic_admission import produce_and_admit_semantics
+
+__all__ = ["produce_and_admit_semantics", "calculate_admitted_ev", "compare_opportunities", "synthesize_cio_decision"]
