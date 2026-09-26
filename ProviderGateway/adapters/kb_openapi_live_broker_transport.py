@@ -169,12 +169,18 @@ class KbOpenApiLiveBrokerTransport:
         if material is None:
             return _auth_failure()
         app_key, app_secret = material
-        if getattr(request, "request_kind", None) != "holdings":
-            return _validation_failure()
-        try:
-            return self._read_holdings(app_key, app_secret)
-        except Exception:
-            return _transport_failure()
+        request_kind = getattr(request, "request_kind", None)
+        if request_kind == "holdings":
+            try:
+                return self._read_holdings(app_key, app_secret)
+            except Exception:
+                return _transport_failure()
+        if request_kind == "balances":
+            try:
+                return self._read_balances(app_key, app_secret)
+            except Exception:
+                return _transport_failure()
+        return _validation_failure()
 
     def probe(
         self,
@@ -232,6 +238,19 @@ class KbOpenApiLiveBrokerTransport:
                 },
                 "dataBody": {
                     "excg_mktpr_ccd": self._excg_mktpr_ccd,
+                },
+            }
+        )
+
+    def _ssqm0004_body(self) -> bytes:
+        return _serialize_compact_json(
+            {
+                "dataHeader": {
+                    "ipAddr": self._ip_addr,
+                    "macAddr": self._mac_addr,
+                },
+                "dataBody": {
+                    "is_no": "",
                 },
             }
         )
@@ -349,6 +368,65 @@ class KbOpenApiLiveBrokerTransport:
             if type(token) is ExplicitTransportFailure:
                 return token
             result = self._post_ssqm2952(token)
+            if result is _UNAUTHORIZED:
+                return _auth_failure()
+        if type(result) is not ExplicitTransportSuccess:
+            return result
+        secrets = _residual_secret_values(app_key, app_secret, token)
+        if _payload_contains_residual_secret(result.body, secrets):
+            return _validation_failure()
+        return result
+
+    def _post_ssqm0004(self, access_token: str):
+        response = self._post(
+            self._base_url + "/api/v1/ssqm0004",
+            {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + access_token,
+            },
+            self._ssqm0004_body(),
+        )
+        if type(response) is not KbOpenApiHttpResponse:
+            return _transport_failure()
+        if type(response.status_code) is not int:
+            return _transport_failure()
+        if type(response.body_text) is not str:
+            return _transport_failure()
+        if response.status_code == 401:
+            return _UNAUTHORIZED
+        if response.status_code == 429:
+            return _rate_limited()
+        if response.status_code != 200:
+            return _provider_error()
+        try:
+            parsed = json.loads(response.body_text)
+        except ValueError:
+            return _validation_failure()
+        if type(parsed) is not dict:
+            return _validation_failure()
+        header = parsed.get("dataHeader")
+        if type(header) is not dict:
+            return _validation_failure()
+        if "processFlag" not in header:
+            return _validation_failure()
+        if header["processFlag"] != "A":
+            return _provider_error()
+        body = parsed.get("dataBody")
+        if type(body) is not dict:
+            return _validation_failure()
+        return ExplicitTransportSuccess(parsed)
+
+    def _read_balances(self, app_key: str, app_secret: str):
+        token = self._obtain_token(app_key, app_secret)
+        if type(token) is ExplicitTransportFailure:
+            return token
+        result = self._post_ssqm0004(token)
+        if result is _UNAUTHORIZED:
+            self._invalidate_token()
+            token = self._obtain_token(app_key, app_secret)
+            if type(token) is ExplicitTransportFailure:
+                return token
+            result = self._post_ssqm0004(token)
             if result is _UNAUTHORIZED:
                 return _auth_failure()
         if type(result) is not ExplicitTransportSuccess:

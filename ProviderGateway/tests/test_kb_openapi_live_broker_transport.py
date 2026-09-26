@@ -52,6 +52,7 @@ FAKE_IP = "10.0.0.1"
 FAKE_MAC = "aa:bb:cc:dd:ee:ff"
 OAUTH_URL = DEFAULT_BASE_URL + "/oauth2/token"
 SSQM2952_URL = DEFAULT_BASE_URL + "/api/v1/ssqm2952"
+SSQM0004_URL = DEFAULT_BASE_URL + "/api/v1/ssqm0004"
 EXPECTED_OAUTH_BODY = (
     '{"dataHeader":{"ipAddr":"10.0.0.1","macAddr":"aa:bb:cc:dd:ee:ff"},'
     '"dataBody":{"appKey":"test-app-key","appSecret":"test-app-secret",'
@@ -60,6 +61,10 @@ EXPECTED_OAUTH_BODY = (
 EXPECTED_SSQM2952_BODY = (
     '{"dataHeader":{"ipAddr":"10.0.0.1","macAddr":"aa:bb:cc:dd:ee:ff"},'
     '"dataBody":{"excg_mktpr_ccd":""}}'
+).encode("utf-8")
+EXPECTED_SSQM0004_BODY = (
+    '{"dataHeader":{"ipAddr":"10.0.0.1","macAddr":"aa:bb:cc:dd:ee:ff"},'
+    '"dataBody":{"is_no":""}}'
 ).encode("utf-8")
 
 
@@ -94,6 +99,26 @@ def ssqm2952_success_payload():
                     "hld_q": "000000000010",
                 }
             ],
+        },
+    }
+
+
+def ssqm0004_success_payload():
+    return {
+        "dataHeader": {
+            "processFlag": "A",
+            "processCode": "0011",
+            "processMessage": "",
+            "o_msg": "정상적으로 조회되었습니다.",
+        },
+        "dataBody": {
+            "ordr_psbl_csh": "000000000339901",
+            "ordr_psbl_amt": "000000000339901",
+            "do_psbl_csh": "000000000000339901",
+            "tdy_tfnd_amt": "000000001000000",
+            "ndy_tfnd": "000000001000000",
+            "nxt2_dy_tfnd": "000000000639950",
+            "o_msg": "정상적으로 조회되었습니다.",
         },
     }
 
@@ -154,6 +179,14 @@ def read_holdings(transport, credential=FAKE_CREDENTIAL):
         make_broker_binding(),
         credential,
         make_broker_request(),
+    )
+
+
+def read_balances(transport, credential=FAKE_CREDENTIAL):
+    return transport.read(
+        make_broker_binding(),
+        credential,
+        make_broker_request(request_kind="balances"),
     )
 
 
@@ -614,8 +647,8 @@ class Ssqm2952SerializationTests(unittest.TestCase):
         self.assertEqual(result.failure_class, "VALIDATION_FAILURE")
         self.assertIsNone(result.detail)
 
-    def test_unsupported_request_kinds_do_not_call_http(self):
-        for request_kind in ("balances", "account_state"):
+    def test_account_state_and_unknown_kinds_do_not_call_http(self):
+        for request_kind in ("account_state", "orders", "mutate"):
             with self.subTest(request_kind=request_kind):
                 http = RecordingHttp(
                     [http_json(oauth_success_payload())]
@@ -635,6 +668,25 @@ class Ssqm2952SerializationTests(unittest.TestCase):
                     "/api/v1/ssam",
                     json.dumps([call["url"] for call in http.calls]),
                 )
+
+    def test_balances_reads_ssqm0004_read_only(self):
+        http = RecordingHttp(
+            [
+                http_json(oauth_success_payload()),
+                http_json(ssqm0004_success_payload()),
+            ]
+        )
+        result = read_balances(make_transport(http))
+        self.assertIsInstance(result, ExplicitTransportSuccess)
+        self.assertEqual(
+            result.body["dataBody"]["ordr_psbl_csh"],
+            "000000000339901",
+        )
+        self.assertEqual(len(http.calls), 2)
+        self.assertEqual(http.calls[0]["url"], OAUTH_URL)
+        self.assertEqual(http.calls[1]["url"], SSQM0004_URL)
+        self.assertEqual(http.calls[1]["body"], EXPECTED_SSQM0004_BODY)
+        self.assertNotIn("ssam", http.calls[1]["url"].casefold())
 
 
 class ResidualSecretTests(unittest.TestCase):
@@ -848,6 +900,20 @@ class ProductionBoundaryTests(unittest.TestCase):
         for call in http.calls:
             self.assertNotIn("ssam", call["url"].casefold())
             self.assertNotIn("ssqm1802", call["url"].casefold())
+        http2 = RecordingHttp(
+            [
+                http_json(oauth_success_payload()),
+                http_json(ssqm0004_success_payload()),
+            ]
+        )
+        read_balances(make_transport(http2))
+        for call in http2.calls:
+            self.assertNotIn("ssam", call["url"].casefold())
+            self.assertNotIn("ssqm1802", call["url"].casefold())
+            self.assertTrue(
+                call["url"].endswith("/oauth2/token")
+                or call["url"].endswith("/api/v1/ssqm0004")
+            )
 
     def test_class_is_not_market_transport(self):
         source = TRANSPORT_PATH.read_text()
