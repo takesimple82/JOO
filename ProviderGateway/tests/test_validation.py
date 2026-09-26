@@ -830,6 +830,7 @@ class BrokerExactTypeAndMembershipTests(unittest.TestCase):
                     None,
                     make_broker_binding(),
                     "holdings",
+                    None,
                 )
             )
         with self.assertRaisesRegex(

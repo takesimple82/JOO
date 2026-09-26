@@ -190,6 +190,7 @@ def balances_collect_request(suffix="001"):
         f"balances-corr-{suffix}",
         adapter_binding,
         "balances",
+        None,
     )
 
 

@@ -388,6 +388,7 @@ class CompositionTests(RuntimeTestCase):
             "corr-001",
             ready.binding,
             "holdings",
+            None,
         )
         outcome = ready.adapter.collect(request)
         self.assertEqual(outcome.result_kind, "success")
@@ -405,11 +406,12 @@ class CompositionTests(RuntimeTestCase):
         ready = self._ready()
         ready.adapter.collect(
             ExplicitBrokerCollectRequest(
-                "envelope-001",
-                "corr-001",
-                ready.binding,
-                "holdings",
-            )
+            "envelope-001",
+            "corr-001",
+            ready.binding,
+            "holdings",
+            None,
+        )
         )
         self.assertTrue(callable(io.prompt_secret))
 
@@ -490,11 +492,12 @@ class CompositionTests(RuntimeTestCase):
         )
         outcome = ready.adapter.collect(
             ExplicitBrokerCollectRequest(
-                "envelope-001",
-                "corr-001",
-                ready.binding,
-                "holdings",
-            )
+            "envelope-001",
+            "corr-001",
+            ready.binding,
+            "holdings",
+            None,
+        )
         )
         self.assertEqual(outcome.failure.failure_class, "AUTH_FAILURE")
         self.assertIsNone(outcome.failure.detail)
@@ -508,11 +511,12 @@ class CompositionTests(RuntimeTestCase):
         )
         outcome = ready.adapter.collect(
             ExplicitBrokerCollectRequest(
-                "envelope-001",
-                "corr-001",
-                other,
-                "holdings",
-            )
+            "envelope-001",
+            "corr-001",
+            other,
+            "holdings",
+            None,
+        )
         )
         self.assertEqual(outcome.failure.failure_class, "AUTH_FAILURE")
         self.assertIsNone(outcome.failure.detail)
@@ -537,11 +541,12 @@ class CompositionTests(RuntimeTestCase):
         )
         outcome = ready.adapter.collect(
             ExplicitBrokerCollectRequest(
-                "envelope-001",
-                "corr-001",
-                ready.binding,
-                "holdings",
-            )
+            "envelope-001",
+            "corr-001",
+            ready.binding,
+            "holdings",
+            None,
+        )
         )
         self.assertEqual(outcome.failure.failure_class, "AUTH_FAILURE")
         self.assertIsNone(outcome.failure.detail)
@@ -579,11 +584,12 @@ class CompositionTests(RuntimeTestCase):
         )
         ready.adapter.collect(
             ExplicitBrokerCollectRequest(
-                "envelope-001",
-                "corr-001",
-                ready.binding,
-                "holdings",
-            )
+            "envelope-001",
+            "corr-001",
+            ready.binding,
+            "holdings",
+            None,
+        )
         )
         self.assertEqual(called["n"], 0)
         body = http.calls[0]["body"].decode("utf-8")

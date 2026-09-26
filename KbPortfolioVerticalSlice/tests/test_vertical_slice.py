@@ -74,6 +74,7 @@ def collect_request(suffix="001"):
         f"correlation-{suffix}",
         binding,
         "holdings",
+        None,
     )
 
 

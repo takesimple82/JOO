@@ -180,6 +180,26 @@ class KbOpenApiLiveBrokerTransport:
                 return self._read_balances(app_key, app_secret)
             except Exception:
                 return _transport_failure()
+        if request_kind == "quote":
+            try:
+                return self._read_quote(app_key, app_secret, request)
+            except Exception:
+                return _transport_failure()
+        if request_kind == "cash_orderability":
+            try:
+                return self._read_cash_orderability(app_key, app_secret)
+            except Exception:
+                return _transport_failure()
+        if request_kind == "sell_orderability":
+            try:
+                return self._read_sell_orderability(app_key, app_secret, request)
+            except Exception:
+                return _transport_failure()
+        if request_kind == "order_status":
+            try:
+                return self._read_order_status(app_key, app_secret, request)
+            except Exception:
+                return _transport_failure()
         return _validation_failure()
 
     def probe(
@@ -435,3 +455,225 @@ class KbOpenApiLiveBrokerTransport:
         if _payload_contains_residual_secret(result.body, secrets):
             return _validation_failure()
         return result
+
+    def _ivu10140_body(self, shrt_cd: str) -> bytes:
+        return _serialize_compact_json(
+            {
+                "dataHeader": {
+                    "ipAddr": self._ip_addr,
+                    "macAddr": self._mac_addr,
+                },
+                "dataBody": {
+                    "excg_clsf": "0",
+                    "shrt_cd": shrt_cd,
+                },
+            }
+        )
+
+    def _ssqm1802_body(self) -> bytes:
+        return _serialize_compact_json(
+            {
+                "dataHeader": {
+                    "ipAddr": self._ip_addr,
+                    "macAddr": self._mac_addr,
+                },
+                "dataBody": {
+                    "bnd_mktio_ccd": "1",
+                    "is_no": "",
+                },
+            }
+        )
+
+    def _ssqm1801_body(self, is_no: str) -> bytes:
+        return _serialize_compact_json(
+            {
+                "dataHeader": {
+                    "ipAddr": self._ip_addr,
+                    "macAddr": self._mac_addr,
+                },
+                "dataBody": {
+                    "mkt_tm_ccd": "1",
+                    "act_cd": "",
+                    "nxt_key": "",
+                    "spclz_ordr_ccd": "",
+                    "inq_clsf": "0",
+                    "is_no": is_no,
+                },
+            }
+        )
+
+    def _ssqm2341_body(self, order_date: str, order_no: str) -> bytes:
+        return _serialize_compact_json(
+            {
+                "dataHeader": {
+                    "ipAddr": self._ip_addr,
+                    "macAddr": self._mac_addr,
+                },
+                "dataBody": {
+                    "b_ccls_amt": "",
+                    "ccls_clsf": "0",
+                    "nxt_key": "",
+                    "s_ccls_q": "",
+                    "is_nm": "",
+                    "inq_clsf": "9",
+                    "is_cd": "",
+                    "ordr_dt": order_date,
+                    "orgn_ordr_no": "",
+                    "b_ccls_q": "",
+                    "s_ccls_amt": "",
+                    "mthr_ordr_no": "",
+                    "cn_clsf": "",
+                    "ac_nm": "",
+                    "ordr_no": order_no,
+                },
+            }
+        )
+
+    def _post_read_api(self, access_token: str, path: str, body: bytes):
+        response = self._post(
+            self._base_url + path,
+            {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + access_token,
+            },
+            body,
+        )
+        if type(response) is not KbOpenApiHttpResponse:
+            return _transport_failure()
+        if type(response.status_code) is not int:
+            return _transport_failure()
+        if type(response.body_text) is not str:
+            return _transport_failure()
+        if response.status_code == 401:
+            return _UNAUTHORIZED
+        if response.status_code == 429:
+            return _rate_limited()
+        if response.status_code != 200:
+            return _provider_error()
+        try:
+            parsed = json.loads(response.body_text)
+        except ValueError:
+            return _validation_failure()
+        if type(parsed) is not dict:
+            return _validation_failure()
+        header = parsed.get("dataHeader")
+        if type(header) is not dict:
+            return _validation_failure()
+        if "processFlag" not in header:
+            return _validation_failure()
+        if header["processFlag"] != "A":
+            return _provider_error()
+        body_obj = parsed.get("dataBody")
+        if type(body_obj) is not dict:
+            return _validation_failure()
+        return ExplicitTransportSuccess(parsed)
+
+    def _read_with_token(self, app_key, app_secret, post_fn):
+        token = self._obtain_token(app_key, app_secret)
+        if type(token) is ExplicitTransportFailure:
+            return token
+        result = post_fn(token)
+        if result is _UNAUTHORIZED:
+            self._invalidate_token()
+            token = self._obtain_token(app_key, app_secret)
+            if type(token) is ExplicitTransportFailure:
+                return token
+            result = post_fn(token)
+            if result is _UNAUTHORIZED:
+                return _auth_failure()
+        if type(result) is not ExplicitTransportSuccess:
+            return result
+        secrets = _residual_secret_values(app_key, app_secret, token)
+        if _payload_contains_residual_secret(result.body, secrets):
+            return _validation_failure()
+        return result
+
+    def _read_quote(self, app_key, app_secret, request):
+        params = getattr(request, "read_parameters", None)
+        if params is None or type(params.instrument_code) is not str:
+            return _validation_failure()
+        shrt_cd = params.instrument_code.strip()
+        if shrt_cd == "":
+            return _validation_failure()
+        body = self._ivu10140_body(shrt_cd)
+        return self._read_with_token(
+            app_key,
+            app_secret,
+            lambda token: self._post_read_api(token, "/api/v1/ivu10140", body),
+        )
+
+    def _read_cash_orderability(self, app_key, app_secret):
+        body = self._ssqm1802_body()
+        return self._read_with_token(
+            app_key,
+            app_secret,
+            lambda token: self._post_read_api(token, "/api/v1/ssqm1802", body),
+        )
+
+    def _read_sell_orderability(self, app_key, app_secret, request):
+        params = getattr(request, "read_parameters", None)
+        is_no = ""
+        if params is not None and type(params.instrument_code) is str:
+            is_no = params.instrument_code.strip()
+        body = self._ssqm1801_body(is_no)
+        return self._read_with_token(
+            app_key,
+            app_secret,
+            lambda token: self._post_read_api(token, "/api/v1/ssqm1801", body),
+        )
+
+    def _post_ssqm2341_status(self, access_token: str, body: bytes):
+        """Status READ tolerates processFlag A or B so recovery can classify."""
+        response = self._post(
+            self._base_url + "/api/v1/ssqm2341",
+            {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + access_token,
+            },
+            body,
+        )
+        if type(response) is not KbOpenApiHttpResponse:
+            return _transport_failure()
+        if type(response.status_code) is not int:
+            return _transport_failure()
+        if type(response.body_text) is not str:
+            return _transport_failure()
+        if response.status_code == 401:
+            return _UNAUTHORIZED
+        if response.status_code == 429:
+            return _rate_limited()
+        if response.status_code != 200:
+            return _provider_error()
+        try:
+            parsed = json.loads(response.body_text)
+        except ValueError:
+            return _validation_failure()
+        if type(parsed) is not dict:
+            return _validation_failure()
+        header = parsed.get("dataHeader")
+        if type(header) is not dict:
+            return _validation_failure()
+        if "processFlag" not in header:
+            return _validation_failure()
+        if header["processFlag"] not in ("A", "B"):
+            return _provider_error()
+        body_obj = parsed.get("dataBody")
+        if type(body_obj) is not dict:
+            return _validation_failure()
+        return ExplicitTransportSuccess(parsed)
+
+    def _read_order_status(self, app_key, app_secret, request):
+        params = getattr(request, "read_parameters", None)
+        order_date = ""
+        order_no = ""
+        if params is not None:
+            if type(params.order_date) is str:
+                order_date = params.order_date.strip()
+            if type(params.order_no) is str:
+                order_no = params.order_no.strip()
+        body = self._ssqm2341_body(order_date, order_no)
+        return self._read_with_token(
+            app_key,
+            app_secret,
+            lambda token: self._post_ssqm2341_status(token, body),
+        )

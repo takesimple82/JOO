@@ -887,9 +887,16 @@ class ProductionBoundaryTests(unittest.TestCase):
     def test_no_ssam_or_order_paths(self):
         source = TRANSPORT_PATH.read_text()
         lowered = source.casefold()
+        # Mutation SSAM paths remain forbidden in READ transport.
         self.assertNotIn("/api/v1/ssam", lowered)
+        self.assertNotIn("ssam1801", lowered)
         self.assertNotIn("ssam1802", lowered)
-        self.assertNotIn("ssqm1802", lowered)
+        self.assertNotIn("ssam1805", lowered)
+        self.assertNotIn("ssam1806", lowered)
+        # Block C READ extensions may reference SSQM1802 / IVU10140 / SSQM2341.
+        self.assertIn("/api/v1/ssqm1802", lowered)
+        self.assertIn("/api/v1/ivu10140", lowered)
+        self.assertIn("/api/v1/ssqm2341", lowered)
         http = RecordingHttp(
             [
                 http_json(oauth_success_payload()),
@@ -899,7 +906,6 @@ class ProductionBoundaryTests(unittest.TestCase):
         read_holdings(make_transport(http))
         for call in http.calls:
             self.assertNotIn("ssam", call["url"].casefold())
-            self.assertNotIn("ssqm1802", call["url"].casefold())
         http2 = RecordingHttp(
             [
                 http_json(oauth_success_payload()),
@@ -909,7 +915,6 @@ class ProductionBoundaryTests(unittest.TestCase):
         read_balances(make_transport(http2))
         for call in http2.calls:
             self.assertNotIn("ssam", call["url"].casefold())
-            self.assertNotIn("ssqm1802", call["url"].casefold())
             self.assertTrue(
                 call["url"].endswith("/oauth2/token")
                 or call["url"].endswith("/api/v1/ssqm0004")
@@ -918,8 +923,8 @@ class ProductionBoundaryTests(unittest.TestCase):
     def test_class_is_not_market_transport(self):
         source = TRANSPORT_PATH.read_text()
         self.assertNotIn("MarketTransport", source)
-        self.assertNotIn("IVU", source)
-        self.assertNotIn("/api/v1/ivu", source.casefold())
+        # Block C allows IVU10140 quote READ on broker transport; still not MarketTransport.
+        self.assertIn("/api/v1/ivu10140", source.casefold())
         self.assertNotIn("/api/v1/gs", source.casefold())
         self.assertNotEqual(
             KbOpenApiLiveBrokerTransport.__name__,

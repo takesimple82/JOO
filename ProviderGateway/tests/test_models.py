@@ -18,6 +18,7 @@ from ProviderGateway.models import (
     SOURCE_CLASS_VALUES,
     ExplicitBrokerAdapterBinding,
     ExplicitBrokerCollectRequest,
+    ExplicitBrokerReadParameters,
     ExplicitBrokerParameterProfile,
     ExplicitCollectOutcome,
     ExplicitCollectRequest,
@@ -309,7 +310,15 @@ class ModelContractTests(unittest.TestCase):
     def test_broker_request_kind_vocabulary_is_exact(self):
         self.assertEqual(
             BROKER_REQUEST_KIND_VALUES,
-            ("holdings", "balances", "account_state"),
+            (
+                "holdings",
+                "balances",
+                "account_state",
+                "quote",
+                "order_status",
+                "sell_orderability",
+                "cash_orderability",
+            ),
         )
         self.assertNotIn("orders", BROKER_REQUEST_KIND_VALUES)
         self.assertNotIn("fills", BROKER_REQUEST_KIND_VALUES)
@@ -354,12 +363,29 @@ class ModelContractTests(unittest.TestCase):
                 "request_correlation_id",
                 "binding",
                 "request_kind",
+                "read_parameters",
             ],
             {
                 "envelope_id": "str",
                 "request_correlation_id": "str | None",
                 "binding": "ExplicitBrokerAdapterBinding",
                 "request_kind": "str",
+                "read_parameters": "ExplicitBrokerReadParameters | None",
+            },
+        )
+
+    def test_broker_read_parameters_field_contract(self):
+        self._assert_frozen_model(
+            ExplicitBrokerReadParameters,
+            [
+                "instrument_code",
+                "order_date",
+                "order_no",
+            ],
+            {
+                "instrument_code": "str | None",
+                "order_date": "str | None",
+                "order_no": "str | None",
             },
         )
 
@@ -374,6 +400,7 @@ class ModelContractTests(unittest.TestCase):
             ExplicitBrokerParameterProfile,
             ExplicitBrokerAdapterBinding,
             ExplicitBrokerCollectRequest,
+            ExplicitBrokerReadParameters,
         ):
             names = [field.name for field in fields(model)]
             for name in forbidden:
@@ -398,6 +425,7 @@ class ModelContractTests(unittest.TestCase):
                 None,
                 make_broker_binding(),
                 "holdings",
+                None,
                 timezone_selector="x",
             )
 
@@ -414,6 +442,7 @@ class ModelContractTests(unittest.TestCase):
                 "request_correlation_id",
                 "binding",
                 "request_kind",
+                "read_parameters",
             ],
         )
 
@@ -422,6 +451,7 @@ class ModelContractTests(unittest.TestCase):
             ExplicitBrokerParameterProfile,
             ExplicitBrokerAdapterBinding,
             ExplicitBrokerCollectRequest,
+            ExplicitBrokerReadParameters,
         ):
             for field in fields(model):
                 self.assertIs(field.default, MISSING)

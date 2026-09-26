@@ -199,6 +199,10 @@ def make_broker_profile(**overrides):
             "holdings",
             "balances",
             "account_state",
+            "quote",
+            "order_status",
+            "sell_orderability",
+            "cash_orderability",
         ),
     }
     values.update(overrides)
@@ -221,6 +225,7 @@ def make_broker_request(**overrides):
         "request_correlation_id": "corr-001",
         "binding": make_broker_binding(),
         "request_kind": "holdings",
+        "read_parameters": None,
     }
     values.update(overrides)
     return ExplicitBrokerCollectRequest(**values)

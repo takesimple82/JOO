@@ -1,6 +1,7 @@
 from ProviderGateway.models.types import (
     ExplicitBrokerAdapterBinding,
     ExplicitBrokerCollectRequest,
+    ExplicitBrokerReadParameters,
     ExplicitBrokerParameterProfile,
     ExplicitCollectOutcome,
     ExplicitCollectRequest,
@@ -29,6 +30,7 @@ __all__ = [
     "SOURCE_CLASS_VALUES",
     "ExplicitBrokerAdapterBinding",
     "ExplicitBrokerCollectRequest",
+    "ExplicitBrokerReadParameters",
     "ExplicitBrokerParameterProfile",
     "ExplicitCollectOutcome",
     "ExplicitCollectRequest",

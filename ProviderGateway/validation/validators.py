@@ -3,6 +3,7 @@ from __future__ import annotations
 from ProviderGateway.models.types import (
     ExplicitBrokerAdapterBinding,
     ExplicitBrokerCollectRequest,
+    ExplicitBrokerReadParameters,
     ExplicitBrokerParameterProfile,
     ExplicitCollectOutcome,
     ExplicitCollectRequest,
@@ -400,6 +401,32 @@ def validate_explicit_broker_collect_request(
         not in request.binding.parameter_profile.request_set
     ):
         raise ValueError("request_kind must be in request_set")
+    if request.read_parameters is not None:
+        require_exact_type(
+            "read_parameters",
+            request.read_parameters,
+            ExplicitBrokerReadParameters,
+        )
+        validate_explicit_broker_read_parameters(request.read_parameters)
+        # Instrument/date selectors are enforced by READ transport fail-closed.
+
+
+def validate_explicit_broker_read_parameters(
+    params: ExplicitBrokerReadParameters,
+) -> None:
+    require_exact_type(
+        "read_parameters",
+        params,
+        ExplicitBrokerReadParameters,
+    )
+    for name in ("instrument_code", "order_date", "order_no"):
+        value = getattr(params, name)
+        if value is None:
+            continue
+        if type(value) is not str:
+            raise TypeError(f"{name} must be str or None")
+        if value.strip() == "":
+            raise ValueError(f"{name} must not be blank when provided")
 
 
 def validate_broker_fact_success_envelope(

@@ -33,4 +33,8 @@ BROKER_REQUEST_KIND_VALUES = (
     "holdings",
     "balances",
     "account_state",
+    "quote",
+    "order_status",
+    "sell_orderability",
+    "cash_orderability",
 )

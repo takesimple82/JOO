@@ -85,8 +85,18 @@ class ExplicitBrokerAdapterBinding:
 
 
 @dataclass(frozen=True)
+class ExplicitBrokerReadParameters:
+    """Optional READ selectors for quote/status/sellability. No secrets."""
+
+    instrument_code: str | None
+    order_date: str | None
+    order_no: str | None
+
+
+@dataclass(frozen=True)
 class ExplicitBrokerCollectRequest:
     envelope_id: str
     request_correlation_id: str | None
     binding: ExplicitBrokerAdapterBinding
     request_kind: str
+    read_parameters: ExplicitBrokerReadParameters | None

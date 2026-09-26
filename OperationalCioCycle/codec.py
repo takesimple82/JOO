@@ -27,6 +27,7 @@ _MODULES = (
     "InvestmentResearchOrchestrator.models.contradiction", "InvestmentResearchOrchestrator.models.re_research",
     "EvidenceContradiction.models", "FactStore.models.types",
     "CapitalAllocationCycle.models", "KbCapitalFactAuthority.models",
+    "BrokerExecutionCycle.models",
 )
 _TYPES = {}
 for _name in _MODULES:
