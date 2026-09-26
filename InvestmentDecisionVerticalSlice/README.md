@@ -33,3 +33,16 @@ does not call an AI model.
 This package owns no allocation quantity, position sizing, capital/risk
 amount, rebalance, approval, order, execution, scheduler, UI, generic
 orchestration framework, or JOO-Automation dependency.
+# Operational CIO reuse
+
+`OperationalCioCycle` is the production caller of the existing evidence,
+semantic, impact, EV, comparison and CIO contracts. `CioDecisionRecord` keeps
+the legacy primary `semantic_output_id` and adds optional ordered
+`semantic_output_ids` for a multi-subject decision. When provided, this set must
+include the primary output. Operational decisions always populate the complete
+set and remain non-executable.
+
+The existing journal admits `OPERATIONAL_CIO_CYCLE` as one atomic dependency
+graph record. It exposes its resolved physical `journal_identity` for cycle
+binding, and locks before reading the append chain tail to prevent concurrent
+forks. No second database or relaxed schema/trigger/integrity contract is added.

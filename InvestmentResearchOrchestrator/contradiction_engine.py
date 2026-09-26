@@ -474,6 +474,8 @@ class ContradictionEngine:
         subject_class = subject_class_by_key.get(subject_key)
         if subject_class is SubjectClass.WATCHLIST:
             return _WATCHLIST_TASK_TYPE, "P1"
+        if subject_class is SubjectClass.RESEARCH_CANDIDATE:
+            return "CANDIDATE_RESEARCH", "P1"
         return _HOLDING_TASK_TYPE, "P0"
 
     def _current_wave_findings(

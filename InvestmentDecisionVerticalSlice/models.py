@@ -57,6 +57,7 @@ class CioActionPosture(Enum):
 
 
 class JournalRecordKind(Enum):
+    OPERATIONAL_CIO_CYCLE = "OPERATIONAL_CIO_CYCLE"
     RESEARCH_EVIDENCE_BUNDLE = "RESEARCH_EVIDENCE_BUNDLE"
     SEMANTIC_PRODUCTION = "SEMANTIC_PRODUCTION"
     THESIS_TRANSITION = "THESIS_TRANSITION"
@@ -221,6 +222,7 @@ class CioDecisionRecord:
     unresolved_reasons: tuple[str, ...]
     narrative_reference_ids: tuple[str, ...]
     executable: bool
+    semantic_output_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

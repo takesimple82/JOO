@@ -41,6 +41,7 @@ class DecisionJournal:
     def __init__(self, path):
         if not isinstance(path, (str, Path)):
             raise TypeError("path must be str or Path")
+        self._journal_identity = str(Path(path).resolve())
         self._connection = sqlite3.connect(str(path), isolation_level=None)
         self._connection.execute("PRAGMA journal_mode=WAL")
         self._connection.execute("PRAGMA synchronous=FULL")
@@ -50,7 +51,25 @@ class DecisionJournal:
         self._verify_schema()
         self.list_records()
 
+    @property
+    def journal_identity(self):
+        """Physical durable journal identity; copying a file does not preserve this binding."""
+        return self._journal_identity
+
     def append_batch(self, batch):
+        # Lock before reading the chain tail: concurrent writers must not
+        # prepare records against the same predecessor.
+        try:
+            self._connection.execute("BEGIN IMMEDIATE")
+            result = self._append_locked(batch)
+            self._connection.execute("COMMIT")
+            return result
+        except Exception:
+            if self._connection.in_transaction:
+                self._connection.execute("ROLLBACK")
+            raise
+
+    def _append_locked(self, batch):
         if type(batch) is not tuple or not batch:
             raise ValueError("batch must be nonempty tuple")
         prior = self.list_records()
@@ -69,13 +88,8 @@ class DecisionJournal:
             payload = _canonical(item.payload)
             seal = _seal(item.record_id, item.kind.value, item.created_at.isoformat(), payload, previous)
             prepared.append((item, payload, previous, seal)); previous = seal; ids.add(item.record_id)
-        try:
-            self._connection.execute("BEGIN IMMEDIATE")
-            for item, payload, previous, seal in prepared:
-                self._connection.execute("INSERT INTO decision_records(record_id,kind,created_at,payload_json,previous_seal,integrity_seal) VALUES(?,?,?,?,?,?)", (item.record_id,item.kind.value,item.created_at.isoformat(),payload,previous,seal))
-            self._connection.execute("COMMIT")
-        except Exception:
-            self._connection.execute("ROLLBACK"); raise
+        for item, payload, previous, seal in prepared:
+            self._connection.execute("INSERT INTO decision_records(record_id,kind,created_at,payload_json,previous_seal,integrity_seal) VALUES(?,?,?,?,?,?)", (item.record_id,item.kind.value,item.created_at.isoformat(),payload,previous,seal))
         return self.list_records()[-len(batch):]
 
     def list_records(self):

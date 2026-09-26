@@ -39,6 +39,7 @@ from InvestmentResearchOrchestrator.models.enums import (
     EvidencePayloadKind,
     IRORunPhase,
     IRORunStatus,
+    SubjectClass,
 )
 from InvestmentResearchOrchestrator.models.memory import (
     MemoryDeltaSet,
@@ -162,6 +163,7 @@ class RunCoordinator:
         prior_store: EvidenceStore | None = None,
         prior_run_id: str | None = None,
         numeric_pairs: tuple | None = None,
+        decision_candidates: tuple | None = None,
     ) -> IRORunResult:
         validate_iro_run(run)
         budget = self._budget_template
@@ -196,7 +198,7 @@ class RunCoordinator:
                 phase=IRORunPhase.SCANNED,
             )
 
-            if len(scan.deltas) == 0:
+            if len(scan.deltas) == 0 and decision_candidates is None:
                 run = self._terminalize(
                     run,
                     phase=(
@@ -220,15 +222,28 @@ class RunCoordinator:
                 )
 
             plan = self._planner.plan(scan)
+            if decision_candidates is not None:
+                plan = self._planner.plan_decision_scope(plan, current_snapshot, decision_candidates)
+                self._append_audit(run_id=run.run_id, kind=EvidencePayloadKind.DECISION_RESEARCH_ADMISSION, payload={
+                    "snapshot_id": current_snapshot.portfolio_snapshot_id,
+                    "holding_subject_ids": [x.position.membership.portfolio_subject_id for x in current_snapshot.holding_snapshot.holding_observations],
+                    "candidates": [{"subject_id": x.subject_id, "admission_id": x.admission_id, "provenance": x.provenance} for x in decision_candidates],
+                })
+            admitted_research_scope = tuple(u.subject_id for u in plan.units)
             run = self._advance(run, phase=IRORunPhase.PLANNED)
             subject_class_by_key = {
                 delta.subject_id: delta.subject_class
                 for delta in scan.deltas
             }
+            if decision_candidates is not None:
+                subject_class_by_key.update({x.subject_id: SubjectClass.RESEARCH_CANDIDATE for x in decision_candidates})
+                subject_class_by_key.update({x.position.membership.portfolio_subject_id: SubjectClass.HOLDING
+                    for x in current_snapshot.holding_snapshot.holding_observations})
 
             while True:
                 run, wave_artifacts, wave_keys = self._execute_wave(
                     run=run,
+                    current_snapshot=current_snapshot,
                     plan=plan,
                     attempt=attempt,
                     templates_by_committee=templates_by_committee,
@@ -330,6 +345,7 @@ class RunCoordinator:
                             contradiction.unresolved
                         ),
                         scan_context=scan,
+                        allowed_subject_ids=(admitted_research_scope if decision_candidates is not None else None),
                     )
                     if len(plan.units) == 0:
                         run, escalation = self._escalate(
@@ -427,6 +443,7 @@ class RunCoordinator:
         self,
         *,
         run: IRORun,
+        current_snapshot: ExplicitPortfolioSnapshot,
         plan: ResearchPlan,
         attempt: int,
         templates_by_committee: dict[str, PromptTemplate],
@@ -453,14 +470,29 @@ class RunCoordinator:
                         f"{committee_id}"
                     )
                 template = templates_by_committee[committee_id]
-                bindings = bindings_by_committee.get(
+                bindings = dict(bindings_by_committee.get(
                     committee_id,
                     {},
-                )
+                ))
+                # Subject identity must come from the planned unit, not a
+                # committee-wide caller binding reused for another subject.
+                bindings["subject_id"] = unit.subject_id
+                bindings["portfolio_snapshot_id"] = current_snapshot.portfolio_snapshot_id
+                factual_context = {
+                    "portfolio_snapshot_id": current_snapshot.portfolio_snapshot_id,
+                    "subject_id": unit.subject_id,
+                    "holding_quantities": [str(x.quantity) for x in current_snapshot.holding_snapshot.holding_observations
+                        if x.position.membership.portfolio_subject_id == unit.subject_id],
+                    "watchlist_member": any(x.membership.portfolio_subject_id == unit.subject_id for x in current_snapshot.watchlist_entries),
+                }
+                # Freeze the exact snapshot context with the existing prompt.
+                # It is factual input, never a fabricated research response.
+                context_template = replace(template, template_bytes=template.template_bytes + b"\nPortfolio snapshot context: {portfolio_context}")
+                bindings["portfolio_context"] = json.dumps(factual_context, sort_keys=True, separators=(",", ":"))
                 artifact = self._prompt_freeze.freeze(
                     research_id=unit.research_id,
                     committee_id=committee_id,
-                    template=template,
+                    template=context_template,
                     bindings=bindings,
                     attempt_index=attempt,
                 )
@@ -613,14 +645,19 @@ class RunCoordinator:
                 )
             )
             for finding in collected.findings:
+                finding_prompt = next(
+                    artifact for artifact in freeze_artifacts
+                    if artifact.research_id == finding.research_id
+                    and artifact.committee_id == finding.committee_id
+                )
                 self._store.append(
                     EvidenceStoreRecord(
                         run_id=run.run_id,
                         research_id=finding.research_id,
                         committee_id=finding.committee_id,
                         provider_id=finding.source,
-                        prompt_id=None,
-                        prompt_hash=None,
+                        prompt_id=finding_prompt.prompt_id,
+                        prompt_hash=finding_prompt.prompt_hash,
                         source_reference=finding.source,
                         collected_at=utc_now(),
                         stored_at=utc_now(),

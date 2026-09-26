@@ -192,3 +192,18 @@ IRO does **not**:
 10. Unresolved contradictions remain explicit.
 11. Re-research is finite and Planner-mediated.
 12. Development plane isolation from Automation.
+# Operational CIO composition seam
+
+Completion Block A adds optional `RunCoordinator.run(decision_candidates=...)`.
+`None` preserves the ordinary structural-scan scope. An explicit tuple of
+`ExplicitResearchCandidate(subject_id, admission_id, provenance)` asks the
+existing planner to cover all current holdings and admitted research candidates.
+Candidates may be outside the watchlist; this does not modify portfolio or
+watchlist truth. The explicit `CANDIDATE_RESEARCH` route must be caller configured.
+The research scope and provenance are recorded as `DECISION_RESEARCH_ADMISSION`;
+re-research cannot leave this admitted scope. No synthetic factual delta is made.
+
+Frozen prompts now include the actual planned subject and exact snapshot
+context. Findings bind the prompt ID/hash used to produce them. This closes
+committee-wide subject-binding reuse and permits downstream prompt provenance
+verification. IRO still owns no EV, CIO, capital allocation or execution.

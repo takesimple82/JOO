@@ -41,6 +41,7 @@ class ScanChangeClass(Enum):
 class SubjectClass(Enum):
     HOLDING = "HOLDING"
     WATCHLIST = "WATCHLIST"
+    RESEARCH_CANDIDATE = "RESEARCH_CANDIDATE"
 
 
 class MemoryDeltaClass(Enum):
@@ -55,6 +56,7 @@ class MemoryDeltaClass(Enum):
 
 
 class EvidencePayloadKind(Enum):
+    DECISION_RESEARCH_ADMISSION = "DECISION_RESEARCH_ADMISSION"
     FINDING = "FINDING"
     COLLECTION_FAILURE = "COLLECTION_FAILURE"
     PROMPT_FREEZE = "PROMPT_FREEZE"

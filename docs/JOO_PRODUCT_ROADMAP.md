@@ -1,8 +1,30 @@
 # JOO Command Center Product Roadmap
 
-Version: 1.2  
+Version: 1.3
 Status: Approved  
 Owner: JOO Command Center
+
+## Current authorized implementation — Completion Block A
+
+Baseline: `612ed50751149aa1dbaf3f5e733b619fd3587ae9`.
+Human-approved Operational CIO scope maps to Stage 5 decision interpretation
+and the narrow Stage 6 append-only runtime composition deliverable. It reuses
+the accepted KB portfolio and investment-decision vertical slices, completing
+their application connection rather than adding another orchestration product.
+
+Exit criteria: one production invocation from KB collection through durable
+facts/snapshot, complete IRO research, explicit holdings/watchlist/candidate
+universe, provider-neutral semantic admission, unchanged ExactExpectedValue,
+compatible comparisons and non-executable CIO decisions atomically persisted
+in the existing DecisionJournal; deterministic offline replay, full regression
+and independent review. Implementation remains pending Human Commit Gate.
+
+Frozen scope excludes allocation, target weights, capital/risk amounts,
+investment approval, order execution, recovery/scheduler/UI and JOO-Automation.
+Engineering Commit Gate never grants investment authority. Historical stage
+descriptions below are retained; they do not authorize Block B or imply that
+the entire investment product is production-ready. Current exact contract is
+`OperationalCioCycle/README.md`.
 
 ## 1. Vision
 

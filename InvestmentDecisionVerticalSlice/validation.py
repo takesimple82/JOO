@@ -215,3 +215,6 @@ def validate_cio_decision(value):
         nonblank("superior_opportunity_id", value.superior_opportunity_id)
     if value.executable is not False:
         raise ValueError("CIO decision must not be executable")
+    unique_ids("semantic_output_ids", value.semantic_output_ids)
+    if value.semantic_output_ids and value.semantic_output_id not in value.semantic_output_ids:
+        raise ValueError("primary semantic output absent from decision provenance")

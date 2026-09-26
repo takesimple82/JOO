@@ -10,6 +10,7 @@ from InvestmentResearchOrchestrator.models.plan import (
     PlannedUnit,
     PlanSkip,
     ResearchPlan,
+    ExplicitResearchCandidate,
 )
 from InvestmentResearchOrchestrator.models.re_research import (
     ReResearchRequestSet,
@@ -32,19 +33,56 @@ from InvestmentResearchOrchestrator.validation.scan import (
 
 HOLDING_TASK_TYPE = "HOLDING_STRUCTURAL"
 WATCHLIST_TASK_TYPE = "WATCHLIST_STRUCTURAL"
+CANDIDATE_TASK_TYPE = "CANDIDATE_RESEARCH"
 
 _TASK_TYPES = {
     SubjectClass.HOLDING: HOLDING_TASK_TYPE,
     SubjectClass.WATCHLIST: WATCHLIST_TASK_TYPE,
+    SubjectClass.RESEARCH_CANDIDATE: CANDIDATE_TASK_TYPE,
 }
 _PRIORITIES = {
     SubjectClass.HOLDING: "P0",
     SubjectClass.WATCHLIST: "P1",
+    SubjectClass.RESEARCH_CANDIDATE: "P1",
 }
 
 
 class ResearchPlanner:
     """Convert structural scan deltas into ordered planned units."""
+
+    def plan_decision_scope(self, plan, snapshot, candidates):
+        """Complete a caller-requested CIO research scope without changing scan facts."""
+        from PortfolioSnapshot.validation import validate_explicit_portfolio_snapshot
+        from InvestmentResearchOrchestrator.validation.common import require_nonblank_string
+        validate_research_plan(plan)
+        validate_explicit_portfolio_snapshot(snapshot)
+        if type(candidates) is not tuple:
+            raise TypeError("decision candidates must be tuple")
+        holdings = tuple(x.position.membership.portfolio_subject_id for x in snapshot.holding_snapshot.holding_observations)
+        candidate_ids, admission_ids = set(), set()
+        for item in candidates:
+            if type(item) is not ExplicitResearchCandidate:
+                raise TypeError("candidate must be ExplicitResearchCandidate")
+            for name in ("subject_id", "admission_id", "provenance"):
+                require_nonblank_string(name, getattr(item, name))
+            if item.subject_id in candidate_ids or item.subject_id in holdings or item.admission_id in admission_ids:
+                raise ValueError("duplicate/conflicting research candidate")
+            candidate_ids.add(item.subject_id)
+            admission_ids.add(item.admission_id)
+        units = list(plan.units)
+        seen = {u.subject_id for u in units}
+        if len(seen) != len(units):
+            raise ValueError("duplicate research subject")
+        for subject_id, task_type in (tuple((x, HOLDING_TASK_TYPE) for x in holdings)
+                + tuple((x.subject_id, CANDIDATE_TASK_TYPE) for x in candidates)):
+            if subject_id not in seen:
+                units.append(PlannedUnit(f"{plan.run_id}:unit:{len(units)}:{subject_id}", subject_id, task_type,
+                    "P0" if task_type == HOLDING_TASK_TYPE else "P1", f"Decision research for {subject_id}",
+                    f"Research explicitly admitted decision subject {subject_id}; no assumed factual change"))
+                seen.add(subject_id)
+        result = ResearchPlan(plan.run_id, tuple(units), plan.skips)
+        validate_research_plan(result)
+        return result
 
     def plan(self, delta_set: ScanDeltaSet) -> ResearchPlan:
         validate_scan_delta_set(delta_set)
@@ -115,6 +153,7 @@ class ResearchPlanner:
         memory: MemoryDeltaSet | None = None,
         unresolved_awareness: tuple | None = None,
         scan_context: ScanDeltaSet | None = None,
+        allowed_subject_ids: tuple[str, ...] | None = None,
     ) -> ResearchPlan:
         validate_re_research_request_set(request_set)
         if memory is not None:
@@ -132,6 +171,10 @@ class ResearchPlanner:
             in_scope = {
                 delta.subject_id for delta in scan_context.deltas
             }
+        if allowed_subject_ids is not None:
+            if type(allowed_subject_ids) is not tuple or any(type(x) is not str or not x.strip() for x in allowed_subject_ids):
+                raise ValueError("explicit allowed research scope required")
+            in_scope = set(allowed_subject_ids)
 
         units: list[PlannedUnit] = []
         skips: list[PlanSkip] = []
