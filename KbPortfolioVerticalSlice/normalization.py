@@ -20,6 +20,7 @@ from KbPortfolioVerticalSlice.validation import (
 
 
 _DECIMAL_TEXT = re.compile(r"^(0|[0-9]+)(\.[0-9]+)?$")
+_DOMESTIC_CURRENCY_CODE = "KRW"
 
 
 def _required_text(row: dict, key: str) -> str:
@@ -28,6 +29,17 @@ def _required_text(row: dict, key: str) -> str:
         raise TypeError(f"{key} must be str")
     if value.strip() == "":
         raise ValueError(f"{key} must not be blank")
+    return value
+
+
+def _raw_currency(row: dict) -> str:
+    value = row.get("crncy_cd")
+    if type(value) is not str:
+        raise TypeError("crncy_cd must be str")
+    if value != "" and value.strip() == "":
+        raise ValueError("crncy_cd must be blank or KRW")
+    if value not in ("", _DOMESTIC_CURRENCY_CODE):
+        raise ValueError("unsupported SSQM2952 currency")
     return value
 
 
@@ -97,23 +109,62 @@ def normalize_ssqm2952(
         ): item
         for item in request.position_bindings
     }
+    binding_by_domestic_identity = {}
+    for item in request.position_bindings:
+        key = (
+            item.account_selector,
+            item.position_class,
+            item.provider_symbol,
+        )
+        binding_by_domestic_identity.setdefault(key, []).append(item)
     seen = set()
     positions = []
     for row in rows:
         if type(row) is not dict:
             raise TypeError("Record1 row must be dict")
+        position_class = _required_text(row, "clsf")
+        provider_symbol = _required_text(row, "is_cd")
+        raw_currency = _raw_currency(row)
+        if raw_currency == "":
+            candidates = binding_by_domestic_identity.get(
+                (
+                    request.account_selector,
+                    position_class,
+                    provider_symbol,
+                ),
+                (),
+            )
+            if len(candidates) != 1:
+                raise ValueError(
+                    "blank crncy_cd requires one explicit domestic binding"
+                )
+            binding = candidates[0]
+            if binding.currency_code != _DOMESTIC_CURRENCY_CODE:
+                raise ValueError(
+                    "blank crncy_cd requires explicit KRW binding"
+                )
+        else:
+            binding = binding_by_identity.get(
+                (
+                    request.account_selector,
+                    position_class,
+                    raw_currency,
+                    provider_symbol,
+                )
+            )
         identity = (
             request.account_selector,
-            _required_text(row, "clsf"),
-            _required_text(row, "crncy_cd"),
-            _required_text(row, "is_cd"),
+            position_class,
+            _DOMESTIC_CURRENCY_CODE,
+            provider_symbol,
         )
         if identity in seen:
             raise ValueError("duplicate canonical response identity")
         seen.add(identity)
-        binding = binding_by_identity.get(identity)
         if binding is None:
             raise ValueError("missing explicit position binding")
+        if binding.currency_code != _DOMESTIC_CURRENCY_CODE:
+            raise ValueError("SSQM2952 binding currency must be KRW")
         quantity, active = _quantity(row.get("hld_q"))
         canonical_payload = {
             "fact_kind": "kb_ssqm2952_position",
@@ -122,6 +173,7 @@ def normalize_ssqm2952(
             "account_selector": binding.account_selector,
             "position_class": binding.position_class,
             "currency_code": binding.currency_code,
+            "raw_currency_code": raw_currency,
             "provider_symbol": binding.provider_symbol,
             "quantity": quantity,
             "raw_quantity": row["hld_q"],
@@ -150,7 +202,7 @@ def normalize_ssqm2952(
                 active,
             )
         )
-    if seen != set(binding_by_identity):
+    if len(seen) != len(request.position_bindings):
         raise ValueError("unused explicit position binding")
     return ExplicitKbNormalizationResult(
         raw_record.fact_id,

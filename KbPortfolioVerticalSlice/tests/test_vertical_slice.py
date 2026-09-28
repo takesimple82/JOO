@@ -78,15 +78,22 @@ def collect_request(suffix="001"):
     )
 
 
-def payload(quantity="000000000010", *, duplicate=False):
+def payload(
+    quantity="000000000010",
+    *,
+    duplicate=False,
+    currency="KRW",
+    valuation="000000710000",
+    now_price="0000071000",
+):
     row = {
         "clsf": "domestic-stock",
-        "crncy_cd": "KRW",
+        "crncy_cd": currency,
         "is_cd": "005930",
         "is_nm": "삼성전자",
         "hld_q": quantity,
-        "now_prc": "0000071000",
-        "val_amt": "000000710000",
+        "now_prc": now_price,
+        "val_amt": valuation,
     }
     rows = [row]
     if duplicate:
@@ -100,25 +107,31 @@ def payload(quantity="000000000010", *, duplicate=False):
     }
 
 
-def successful_outcome(suffix="001", quantity="000000000010"):
+def successful_outcome(
+    suffix="001",
+    quantity="000000000010",
+    *,
+    currency="KRW",
+    provider_id="kb_open_api",
+):
     envelope = ExplicitProviderPayloadEnvelope(
         f"raw-envelope-{suffix}",
-        "kb_open_api",
+        provider_id,
         "broker_fact",
         COLLECTED,
         "success",
-        payload(quantity),
+        payload(quantity, currency=currency),
         None,
         f"correlation-{suffix}",
     )
     return ExplicitCollectOutcome("success", envelope, None)
 
 
-def normalization_request(suffix="001"):
+def normalization_request(suffix="001", *, currency="KRW"):
     binding = ExplicitKbPositionBinding(
         "account-primary",
         "domestic-stock",
-        "KRW",
+        currency,
         "005930",
         f"position-fact-{suffix}",
         f"position-envelope-{suffix}",
@@ -165,16 +178,25 @@ class VerticalSliceTests(unittest.TestCase):
         prior=None,
         coordinator=None,
         max_age=timedelta(minutes=5),
+        raw_currency="KRW",
+        binding_currency="KRW",
     ):
         snapshot_id = f"snapshot-{suffix}"
         coordinator = coordinator or RecordingCoordinator()
         result = run_kb_portfolio_vertical_slice(
             adapter=FakeAdapter(
-                successful_outcome(suffix, quantity)
+                successful_outcome(
+                    suffix,
+                    quantity,
+                    currency=raw_currency,
+                )
             ),
             collect_request=collect_request(suffix),
             raw_fact_id=f"raw-fact-{suffix}",
-            normalization_request=normalization_request(suffix),
+            normalization_request=normalization_request(
+                suffix,
+                currency=binding_currency,
+            ),
             fact_store=self.store,
             snapshot_producer=PortfolioSnapshotProducer(
                 self.store, lambda: evaluation_time
@@ -210,6 +232,8 @@ class VerticalSliceTests(unittest.TestCase):
         self.assertEqual(canonical.payload["raw_fact_id"], raw.fact_id)
         self.assertEqual(canonical.payload["raw_quantity"], "000000000010")
         self.assertEqual(canonical.payload["quantity"], "10")
+        self.assertEqual(canonical.payload["currency_code"], "KRW")
+        self.assertEqual(canonical.payload["raw_currency_code"], "KRW")
         self.assertEqual(
             result.snapshot.holding_snapshot.holding_observations[0].quantity,
             10,
@@ -219,10 +243,107 @@ class VerticalSliceTests(unittest.TestCase):
             ("position-fact-001",),
         )
 
+    def test_blank_domestic_currency_preserves_raw_and_canonicalizes_krw(self):
+        result, _coordinator = self.execute(raw_currency="")
+        raw = self.store.get_by_fact_id("raw-fact-001")
+        canonical = self.store.get_by_fact_id("position-fact-001")
+        self.assertEqual(
+            raw.payload["dataBody"]["Record1"][0]["crncy_cd"],
+            "",
+        )
+        self.assertEqual(canonical.payload["raw_currency_code"], "")
+        self.assertEqual(canonical.payload["currency_code"], "KRW")
+        self.assertEqual(result.snapshot.portfolio_snapshot_id, "snapshot-001")
+
+    def test_blank_domestic_currency_replays_deterministically(self):
+        self.execute(raw_currency="")
+        reopened = SQLiteAppendOnlyFactEngine(
+            Path(self.temporary.name) / "facts.sqlite3"
+        )
+        try:
+            replay = FactStore(lambda: COLLECTED, reopened)
+            raw = replay.get_by_fact_id("raw-fact-001")
+            canonical = replay.get_by_fact_id("position-fact-001")
+            self.assertEqual(
+                raw.payload["dataBody"]["Record1"][0]["crncy_cd"],
+                "",
+            )
+            self.assertEqual(canonical.payload["raw_currency_code"], "")
+            self.assertEqual(canonical.payload["currency_code"], "KRW")
+        finally:
+            reopened.close()
+
+    def test_unsupported_nonblank_currency_fails_closed(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "^unsupported SSQM2952 currency$",
+        ):
+            self.execute(raw_currency="USD", binding_currency="USD")
+        raw = self.store.get_by_fact_id("raw-fact-001")
+        self.assertEqual(
+            raw.payload["dataBody"]["Record1"][0]["crncy_cd"],
+            "USD",
+        )
+        with self.assertRaisesRegex(ValueError, "^fact_id not found$"):
+            self.store.get_by_fact_id("position-fact-001")
+
+    def test_blank_currency_with_foreign_binding_fails_closed(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "^blank crncy_cd requires explicit KRW binding$",
+        ):
+            self.execute(raw_currency="", binding_currency="USD")
+        raw = self.store.get_by_fact_id("raw-fact-001")
+        self.assertEqual(
+            raw.payload["dataBody"]["Record1"][0]["crncy_cd"],
+            "",
+        )
+        with self.assertRaisesRegex(ValueError, "^fact_id not found$"):
+            self.store.get_by_fact_id("position-fact-001")
+
+    def test_blank_currency_from_unknown_provider_fails_closed(self):
+        request = collect_request()
+        request = replace(
+            request,
+            binding=replace(request.binding, provider_id="unknown"),
+        )
+        outcome = successful_outcome(currency="", provider_id="unknown")
+        with self.assertRaisesRegex(
+            ValueError,
+            "^raw provider must be kb_open_api$",
+        ):
+            run_kb_portfolio_vertical_slice(
+                adapter=FakeAdapter(outcome),
+                collect_request=request,
+                raw_fact_id="raw-fact-001",
+                normalization_request=normalization_request(),
+                fact_store=self.store,
+                snapshot_producer=PortfolioSnapshotProducer(
+                    self.store, lambda: COLLECTED
+                ),
+                snapshot_identity=ExplicitSnapshotIdentity(
+                    "snapshot-001", "context-001", "portfolio-main"
+                ),
+                watchlist_memberships=(),
+                policy=ExplicitVerticalSlicePolicy(timedelta(minutes=5)),
+                run=run_model("snapshot-001"),
+                prior_snapshot=None,
+                ingress_id="ingress-001",
+                coordinator=RecordingCoordinator(),
+                iro_run_arguments={},
+            )
+        with self.assertRaisesRegex(ValueError, "^fact_id not found$"):
+            self.store.get_by_fact_id("position-fact-001")
+
     def test_zero_quantity_is_historical_but_not_active(self):
-        result, coordinator = self.execute(quantity="000000000000")
+        result, coordinator = self.execute(
+            quantity="000000000000",
+            raw_currency="",
+        )
         canonical = self.store.get_by_fact_id("position-fact-001")
         self.assertEqual(canonical.payload["quantity"], "0")
+        self.assertEqual(canonical.payload["currency_code"], "KRW")
+        self.assertEqual(canonical.payload["raw_currency_code"], "")
         self.assertEqual(
             result.snapshot.holding_snapshot.holding_observations,
             (),

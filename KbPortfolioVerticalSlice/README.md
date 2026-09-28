@@ -18,11 +18,17 @@ PortfolioScanner, or InvestmentResearchOrchestrator.
 - Every `Record1` row requires an exact caller-supplied account, provider
   symbol, position-class, currency, portfolio-subject, position, fact, and
   envelope binding.
+- `SSQM2952` is the verified domestic holdings path. Its exact raw
+  `crncy_cd` is preserved. A raw empty string is canonicalized to `KRW` only
+  when the row has exactly one explicit caller-supplied `KRW` binding for the
+  same account, position class, and provider symbol. Blank currency with an
+  absent, ambiguous, unknown, or non-KRW binding fails closed. Nonblank
+  currency must be exactly `KRW`; overseas schemas remain separate.
 - Quantities are unsigned finite decimal text. `float` is never accepted.
 - One malformed, duplicate, missing, ambiguous, or unused binding rejects
   the complete canonical batch.
 - Canonical position facts retain raw fact and envelope identities plus the
-  exact provider quantity text.
+  exact provider quantity and currency text.
 - Canonical facts are accepted in one durable FactStore transaction.
 - Zero-quantity rows remain canonical facts but are omitted from active
   snapshot holding membership.
