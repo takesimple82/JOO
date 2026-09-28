@@ -88,19 +88,23 @@ def payload(
     currency="KRW",
     valuation="000000710000",
     now_price="0000071000",
+    clsf="domestic-stock",
+    is_cd="005930",
+    rows=None,
 ):
-    row = {
-        "clsf": "domestic-stock",
-        "crncy_cd": currency,
-        "is_cd": "005930",
-        "is_nm": "삼성전자",
-        "hld_q": quantity,
-        "now_prc": now_price,
-        "val_amt": valuation,
-    }
-    rows = [row]
-    if duplicate:
-        rows.append(dict(row))
+    if rows is None:
+        row = {
+            "clsf": clsf,
+            "crncy_cd": currency,
+            "is_cd": is_cd,
+            "is_nm": "삼성전자",
+            "hld_q": quantity,
+            "now_prc": now_price,
+            "val_amt": valuation,
+        }
+        rows = [row]
+        if duplicate:
+            rows.append(dict(row))
     return {
         "dataHeader": {
             "processFlag": "A",
@@ -116,6 +120,9 @@ def successful_outcome(
     *,
     currency="KRW",
     provider_id="kb_open_api",
+    rows=None,
+    clsf="domestic-stock",
+    is_cd="005930",
 ):
     envelope = ExplicitProviderPayloadEnvelope(
         f"raw-envelope-{suffix}",
@@ -123,29 +130,47 @@ def successful_outcome(
         "broker_fact",
         COLLECTED,
         "success",
-        payload(quantity, currency=currency),
+        payload(
+            quantity,
+            currency=currency,
+            rows=rows,
+            clsf=clsf,
+            is_cd=is_cd,
+        ),
         None,
         f"correlation-{suffix}",
     )
     return ExplicitCollectOutcome("success", envelope, None)
 
 
-def normalization_request(suffix="001", *, currency="KRW"):
-    binding = ExplicitKbPositionBinding(
-        "account-primary",
-        "domestic-stock",
-        currency,
-        "005930",
-        f"position-fact-{suffix}",
-        f"position-envelope-{suffix}",
-        "position-samsung",
-        "subject-samsung",
-        None,
-    )
+def normalization_request(
+    suffix="001",
+    *,
+    currency="KRW",
+    bindings=None,
+    exclusion_fact_id=None,
+    exclusion_envelope_id=None,
+):
+    if bindings is None:
+        bindings = (
+            ExplicitKbPositionBinding(
+                "account-primary",
+                "domestic-stock",
+                currency,
+                "005930",
+                f"position-fact-{suffix}",
+                f"position-envelope-{suffix}",
+                "position-samsung",
+                "subject-samsung",
+                None,
+            ),
+        )
     return ExplicitKbNormalizationRequest(
         f"raw-fact-{suffix}",
         "account-primary",
-        (binding,),
+        bindings,
+        exclusion_fact_id,
+        exclusion_envelope_id,
     )
 
 
@@ -183,6 +208,10 @@ class VerticalSliceTests(unittest.TestCase):
         max_age=timedelta(minutes=5),
         raw_currency="KRW",
         binding_currency="KRW",
+        rows=None,
+        bindings=None,
+        exclusion_fact_id=None,
+        exclusion_envelope_id=None,
     ):
         snapshot_id = f"snapshot-{suffix}"
         coordinator = coordinator or RecordingCoordinator()
@@ -192,6 +221,7 @@ class VerticalSliceTests(unittest.TestCase):
                     suffix,
                     quantity,
                     currency=raw_currency,
+                    rows=rows,
                 )
             ),
             collect_request=collect_request(suffix),
@@ -199,6 +229,9 @@ class VerticalSliceTests(unittest.TestCase):
             normalization_request=normalization_request(
                 suffix,
                 currency=binding_currency,
+                bindings=bindings,
+                exclusion_fact_id=exclusion_fact_id,
+                exclusion_envelope_id=exclusion_envelope_id,
             ),
             fact_store=self.store,
             snapshot_producer=PortfolioSnapshotProducer(
@@ -292,12 +325,27 @@ class VerticalSliceTests(unittest.TestCase):
         finally:
             reopened.close()
 
-    def test_unsupported_nonblank_currency_fails_closed(self):
-        with self.assertRaisesRegex(
-            ValueError,
-            "^unsupported SSQM2952 currency$",
-        ):
-            self.execute(raw_currency="USD", binding_currency="USD")
+    def test_pure_usd_excludes_with_durable_provenance(self):
+        result, coordinator = self.execute(
+            raw_currency="USD",
+            bindings=(),
+            exclusion_fact_id="excl-fact-001",
+            exclusion_envelope_id="excl-env-001",
+            rows=[
+                {
+                    "clsf": "외화증권",
+                    "crncy_cd": "USD",
+                    "is_cd": "AAPL",
+                    "is_nm": "APPLE",
+                    "hld_q": "000000000010",
+                    "now_prc": "0000071000",
+                    "val_amt": "000000710000",
+                }
+            ],
+        )
+        self.assertEqual(result.result_kind, "success")
+        self.assertEqual(result.change_class, "NO_CHANGE")
+        self.assertEqual(coordinator.calls, [])
         raw = self.store.get_by_fact_id("raw-fact-001")
         self.assertEqual(
             raw.payload["dataBody"]["Record1"][0]["crncy_cd"],
@@ -305,6 +353,23 @@ class VerticalSliceTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "^fact_id not found$"):
             self.store.get_by_fact_id("position-fact-001")
+        excl = self.store.get_by_fact_id("excl-fact-001")
+        self.assertEqual(
+            excl.payload["fact_kind"],
+            "kb_ssqm2952_domestic_projection_exclusions",
+        )
+        self.assertEqual(excl.payload["excluded_count"], 1)
+        self.assertEqual(excl.payload["domestic_projected_count"], 0)
+        self.assertEqual(excl.payload["record1_observed_count"], 1)
+        self.assertEqual(
+            excl.payload["exclusion_reason"], "EXCLUDED_NON_DOMESTIC"
+        )
+        self.assertEqual(
+            excl.payload["exclusions"][0]["raw_currency_code"], "USD"
+        )
+        self.assertEqual(
+            excl.payload["exclusions"][0]["position_class"], "외화증권"
+        )
 
     def test_blank_currency_with_foreign_binding_fails_closed(self):
         with self.assertRaisesRegex(
@@ -648,6 +713,137 @@ class VerticalSliceTests(unittest.TestCase):
         self.assertEqual(canonical.payload["currency_code"], "KRW")
         self.assertEqual(result.result_kind, "success")
 
+    def test_mixed_domestic_and_usd_projects_with_provenance(self):
+        rows = [
+            {
+                "clsf": "현금",
+                "crncy_cd": OFFICIAL_FIXED_WIDTH_BLANK,
+                "is_cd": "005930",
+                "is_nm": "삼성전자",
+                "hld_q": "000000000010",
+                "now_prc": "0000071000",
+                "val_amt": "000000710000",
+            },
+            {
+                "clsf": "외화증권",
+                "crncy_cd": "USD",
+                "is_cd": "AAPL",
+                "is_nm": "APPLE",
+                "hld_q": "000000000005",
+                "now_prc": "0000071000",
+                "val_amt": "000000710000",
+            },
+            {
+                "clsf": "외화증권(M)",
+                "crncy_cd": "USD",
+                "is_cd": "MSFT",
+                "is_nm": "MICROSOFT",
+                "hld_q": "000000000002",
+                "now_prc": "0000071000",
+                "val_amt": "000000710000",
+            },
+        ]
+        bindings = (
+            ExplicitKbPositionBinding(
+                "account-primary",
+                "현금",
+                "KRW",
+                "005930",
+                "position-fact-001",
+                "position-envelope-001",
+                "position-cash-shaped",
+                "subject-cash-shaped",
+                None,
+            ),
+        )
+        result, coordinator = self.execute(
+            rows=rows,
+            bindings=bindings,
+            exclusion_fact_id="excl-fact-001",
+            exclusion_envelope_id="excl-env-001",
+        )
+        self.assertEqual(result.result_kind, "success")
+        self.assertEqual(result.change_class, "BASELINE_ABSENT")
+        self.assertEqual(len(coordinator.calls), 1)
+        raw = self.store.get_by_fact_id("raw-fact-001")
+        self.assertEqual(len(raw.payload["dataBody"]["Record1"]), 3)
+        self.assertEqual(
+            raw.payload["dataBody"]["Record1"][0]["crncy_cd"], "   "
+        )
+        self.assertEqual(
+            raw.payload["dataBody"]["Record1"][1]["crncy_cd"], "USD"
+        )
+        canonical = self.store.get_by_fact_id("position-fact-001")
+        self.assertEqual(canonical.payload["raw_currency_code"], "   ")
+        self.assertEqual(canonical.payload["currency_code"], "KRW")
+        self.assertEqual(canonical.payload["position_class"], "현금")
+        excl = self.store.get_by_fact_id("excl-fact-001")
+        self.assertEqual(excl.payload["excluded_count"], 2)
+        self.assertEqual(excl.payload["domestic_projected_count"], 1)
+        self.assertEqual(excl.payload["record1_observed_count"], 3)
+        reasons = {item["reason"] for item in excl.payload["exclusions"]}
+        self.assertEqual(reasons, {"EXCLUDED_NON_DOMESTIC"})
+        classes = {
+            item["position_class"] for item in excl.payload["exclusions"]
+        }
+        self.assertEqual(classes, {"외화증권", "외화증권(M)"})
+        currencies = {
+            item["raw_currency_code"] for item in excl.payload["exclusions"]
+        }
+        self.assertEqual(currencies, {"USD"})
+        with self.assertRaisesRegex(ValueError, "^fact_id not found$"):
+            self.store.get_by_fact_id("position-fact-usd")
+
+    def test_exclusion_without_provenance_identity_fails_closed(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "^exclusion provenance identity required$",
+        ):
+            self.execute(
+                raw_currency="USD",
+                bindings=(),
+                rows=[
+                    {
+                        "clsf": "외화증권",
+                        "crncy_cd": "USD",
+                        "is_cd": "AAPL",
+                        "is_nm": "APPLE",
+                        "hld_q": "000000000010",
+                        "now_prc": "0000071000",
+                        "val_amt": "000000710000",
+                    }
+                ],
+            )
+        self.assertIsNotNone(self.store.get_by_fact_id("raw-fact-001"))
+        with self.assertRaisesRegex(ValueError, "^fact_id not found$"):
+            self.store.get_by_fact_id("excl-fact-001")
+
+    def test_foreign_clsf_with_blank_currency_is_excluded(self):
+        result, _ = self.execute(
+            bindings=(),
+            exclusion_fact_id="excl-fact-001",
+            exclusion_envelope_id="excl-env-001",
+            rows=[
+                {
+                    "clsf": "외화증권",
+                    "crncy_cd": OFFICIAL_FIXED_WIDTH_BLANK,
+                    "is_cd": "AAPL",
+                    "is_nm": "APPLE",
+                    "hld_q": "000000000010",
+                    "now_prc": "0000071000",
+                    "val_amt": "000000710000",
+                }
+            ],
+        )
+        self.assertEqual(result.result_kind, "success")
+        excl = self.store.get_by_fact_id("excl-fact-001")
+        self.assertEqual(excl.payload["excluded_count"], 1)
+        self.assertEqual(
+            excl.payload["exclusions"][0]["position_class"], "외화증권"
+        )
+        self.assertEqual(
+            excl.payload["exclusions"][0]["raw_currency_code"], "   "
+        )
 
 
 

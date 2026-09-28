@@ -121,6 +121,11 @@ def run_kb_portfolio_vertical_slice(
         raw_envelope=raw_envelope,
         request=normalization_request,
     )
+    if normalized.exclusion_provenance_append_request is not None:
+        exclusion_record = fact_store.append(
+            normalized.exclusion_provenance_append_request
+        )
+        fact_store.verify_integrity(exclusion_record.fact_id)
     normalized_requests = tuple(
         position.append_request
         for position in normalized.positions

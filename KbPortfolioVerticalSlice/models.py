@@ -28,6 +28,8 @@ class ExplicitKbNormalizationRequest:
     raw_fact_id: str
     account_selector: str
     position_bindings: tuple[ExplicitKbPositionBinding, ...]
+    exclusion_provenance_fact_id: str | None = None
+    exclusion_provenance_envelope_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -40,10 +42,21 @@ class ExplicitNormalizedPosition:
 
 
 @dataclass(frozen=True)
+class ExplicitDomesticRowExclusion:
+    row_index: int
+    raw_currency_code: str
+    position_class: str
+    provider_symbol: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class ExplicitKbNormalizationResult:
     raw_fact_id: str
     collected_at: datetime
     positions: tuple[ExplicitNormalizedPosition, ...]
+    exclusions: tuple[ExplicitDomesticRowExclusion, ...] = ()
+    exclusion_provenance_append_request: ExplicitFactAppendRequest | None = None
 
 
 @dataclass(frozen=True)

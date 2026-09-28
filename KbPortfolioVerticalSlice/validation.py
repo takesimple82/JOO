@@ -73,6 +73,17 @@ def validate_normalization_request(
         )
     _nonblank("raw_fact_id", request.raw_fact_id)
     _nonblank("account_selector", request.account_selector)
+    excl_fact = request.exclusion_provenance_fact_id
+    excl_env = request.exclusion_provenance_envelope_id
+    if excl_fact is None and excl_env is None:
+        pass
+    elif excl_fact is None or excl_env is None:
+        raise ValueError("exclusion provenance identity incomplete")
+    else:
+        _nonblank("exclusion_provenance_fact_id", excl_fact)
+        _nonblank("exclusion_provenance_envelope_id", excl_env)
+        if excl_fact == request.raw_fact_id:
+            raise ValueError("exclusion provenance fact_id collision")
     if type(request.position_bindings) is not tuple:
         raise TypeError("position_bindings must be tuple")
     identities = set()
@@ -114,6 +125,11 @@ def validate_normalization_request(
                 raise ValueError(message)
             seen.add(value)
         identities.add(identity)
+    if excl_fact is not None:
+        if excl_fact in fact_ids:
+            raise ValueError("exclusion provenance fact_id collision")
+        if excl_env in envelope_ids:
+            raise ValueError("exclusion provenance envelope_id collision")
 
 
 def validate_vertical_slice_policy(

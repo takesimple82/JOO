@@ -41,6 +41,8 @@ class ExplicitHoldingsCapitalNormalizationRequest:
     account_selector: str
     account_valuation: ExplicitCapitalFactBinding
     position_bindings: tuple["ExplicitPositionMarketValueBinding", ...]
+    exclusion_provenance_fact_id: str | None = None
+    exclusion_provenance_envelope_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -70,10 +72,21 @@ class ExplicitBalancesNormalizationResult:
 
 
 @dataclass(frozen=True)
+class ExplicitDomesticCapitalRowExclusion:
+    row_index: int
+    raw_currency_code: str
+    position_class: str
+    provider_symbol: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class ExplicitHoldingsCapitalNormalizationResult:
     raw_fact_id: str
     collected_at: datetime
     facts: tuple[ExplicitNormalizedCapitalFact, ...]
+    exclusions: tuple[ExplicitDomesticCapitalRowExclusion, ...] = ()
+    exclusion_provenance_append_request: ExplicitFactAppendRequest | None = None
 
 
 @dataclass(frozen=True)

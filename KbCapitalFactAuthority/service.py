@@ -222,6 +222,11 @@ def run_kb_capital_fact_plane(
             )
         holdings_facts = holdings_normalized.facts
         raw_holdings_fact_id = holdings_raw_record.fact_id
+        if holdings_normalized.exclusion_provenance_append_request is not None:
+            exclusion_record = fact_store.append(
+                holdings_normalized.exclusion_provenance_append_request
+            )
+            fact_store.verify_integrity(exclusion_record.fact_id)
 
     canonical_facts = balances_normalized.facts + holdings_facts
     append_requests = tuple(

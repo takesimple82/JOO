@@ -1,4 +1,5 @@
 from KbPortfolioVerticalSlice.models import (
+    ExplicitDomesticRowExclusion,
     ExplicitIroIngressArtifact,
     ExplicitKbNormalizationRequest,
     ExplicitKbNormalizationResult,
@@ -10,6 +11,7 @@ from KbPortfolioVerticalSlice.models import (
 )
 
 __all__ = [
+    "ExplicitDomesticRowExclusion",
     "ExplicitIroIngressArtifact",
     "ExplicitKbNormalizationRequest",
     "ExplicitKbNormalizationResult",

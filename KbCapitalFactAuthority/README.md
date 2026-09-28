@@ -35,8 +35,12 @@ Deployable / investable / HIP ceilings are Block B / later policy planes.
 
 - No credit, margin, 미수, loan, 대용, `mx_*`, or leverage inflation of
   `OrderableCashFact`.
-- Domestic KRW only; unknown / overseas currency fail-closed.
-- No FX or cross-currency aggregation.
+- Domestic KRW only on the capital plane. Foreign `SSQM2952` rows
+  (`USD`, `외화증권`, `외화증권(M)`, other nonblank non-`KRW`) are
+  excluded before domestic MV normalize and leave durable exclusion
+  provenance (`EXCLUDED_NON_DOMESTIC`) — never silent drop. Malformed
+  domestic lookalikes still fail closed. No FX or cross-currency
+  aggregation. Free cash remains `SSQM0004` only.
 
 ## Composition
 

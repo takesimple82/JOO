@@ -14,6 +14,7 @@ from KbCapitalFactAuthority.models import (
     ExplicitBalancesNormalizationRequest,
     ExplicitBalancesNormalizationResult,
     ExplicitCapitalFactBinding,
+    ExplicitDomesticCapitalRowExclusion,
     ExplicitExactAmount,
     ExplicitHoldingsCapitalNormalizationRequest,
     ExplicitHoldingsCapitalNormalizationResult,
@@ -252,6 +253,84 @@ def normalize_ssqm0004_balances(
     )
 
 
+_FOREIGN_POSITION_CLASSES = frozenset({"외화증권", "외화증권(M)"})
+_EXCLUSION_REASON_NON_DOMESTIC = "EXCLUDED_NON_DOMESTIC"
+_EXCLUSION_FACT_KIND = "kb_ssqm2952_domestic_projection_exclusions"
+
+
+def _is_semantic_blank_currency(value: str) -> bool:
+    return value.strip() == ""
+
+
+def _row_projection_disposition(
+    position_class: str, raw_currency: str
+) -> str:
+    if position_class in _FOREIGN_POSITION_CLASSES:
+        return "exclude"
+    if _is_semantic_blank_currency(raw_currency):
+        return "project"
+    if raw_currency == DOMESTIC_CURRENCY_CODE:
+        return "project"
+    if raw_currency.strip() == DOMESTIC_CURRENCY_CODE:
+        raise ValueError("unknown or non-domestic currency fail-closed")
+    return "exclude"
+
+
+def _build_capital_exclusion_provenance_request(
+    *,
+    request: ExplicitHoldingsCapitalNormalizationRequest,
+    raw_record: ExplicitStoredFactRecord,
+    raw_envelope: ExplicitProviderPayloadEnvelope,
+    exclusions: tuple[ExplicitDomesticCapitalRowExclusion, ...],
+    domestic_projected_count: int,
+    record1_observed_count: int,
+) -> ExplicitFactAppendRequest:
+    fact_id = request.exclusion_provenance_fact_id
+    envelope_id = request.exclusion_provenance_envelope_id
+    if type(fact_id) is not str or fact_id.strip() == "":
+        raise ValueError("exclusion provenance identity required")
+    if type(envelope_id) is not str or envelope_id.strip() == "":
+        raise ValueError("exclusion provenance identity required")
+    if fact_id == request.raw_fact_id:
+        raise ValueError("exclusion provenance fact_id collision")
+    if fact_id == request.account_valuation.fact_id:
+        raise ValueError("exclusion provenance fact_id collision")
+    for binding in request.position_bindings:
+        if fact_id == binding.fact_id or envelope_id == binding.envelope_id:
+            raise ValueError("exclusion provenance identity collision")
+    payload = {
+        "fact_kind": _EXCLUSION_FACT_KIND,
+        "raw_fact_id": raw_record.fact_id,
+        "raw_envelope_id": raw_record.envelope_id,
+        "account_selector": request.account_selector,
+        "record1_observed_count": record1_observed_count,
+        "domestic_projected_count": domestic_projected_count,
+        "excluded_count": len(exclusions),
+        "exclusion_reason": _EXCLUSION_REASON_NON_DOMESTIC,
+        "exclusions": [
+            {
+                "row_index": item.row_index,
+                "raw_currency_code": item.raw_currency_code,
+                "position_class": item.position_class,
+                "provider_symbol": item.provider_symbol,
+                "reason": item.reason,
+            }
+            for item in exclusions
+        ],
+    }
+    envelope = ExplicitProviderPayloadEnvelope(
+        envelope_id,
+        raw_record.provider_id,
+        "broker_fact",
+        raw_record.collected_at,
+        "success",
+        payload,
+        None,
+        raw_envelope.request_correlation_id,
+    )
+    return ExplicitFactAppendRequest(fact_id, envelope, None)
+
+
 def normalize_ssqm2952_capital_facts(
     *,
     raw_record: ExplicitStoredFactRecord,
@@ -301,7 +380,9 @@ def normalize_ssqm2952_capital_facts(
         for item in request.position_bindings
     }
     seen = set()
-    for row in rows:
+    exclusions: list[ExplicitDomesticCapitalRowExclusion] = []
+    domestic_count = 0
+    for row_index, row in enumerate(rows):
         if type(row) is not dict:
             raise TypeError("Record1 row must be dict")
         clsf = row.get("clsf")
@@ -309,8 +390,22 @@ def normalize_ssqm2952_capital_facts(
         is_cd = row.get("is_cd")
         if type(clsf) is not str or type(is_cd) is not str:
             raise TypeError("Record1 identity fields must be str")
+        if clsf.strip() == "" or is_cd.strip() == "":
+            raise ValueError("Record1 identity fields must not be blank")
         if type(crncy_cd) is not str:
             raise TypeError("crncy_cd must be str")
+        disposition = _row_projection_disposition(clsf, crncy_cd)
+        if disposition == "exclude":
+            exclusions.append(
+                ExplicitDomesticCapitalRowExclusion(
+                    row_index,
+                    crncy_cd,
+                    clsf,
+                    is_cd,
+                    _EXCLUSION_REASON_NON_DOMESTIC,
+                )
+            )
+            continue
         currency = validate_domestic_currency_code(crncy_cd)
         # Bindings use operator currency_code (KRW); broker blank maps to KRW.
         binding_identity = (
@@ -364,10 +459,24 @@ def normalize_ssqm2952_capital_facts(
                 },
             )
         )
+        domestic_count += 1
     if seen != set(binding_by_identity):
         raise ValueError("unused explicit position MV binding")
+    exclusion_tuple = tuple(exclusions)
+    provenance_request = None
+    if len(exclusion_tuple) > 0:
+        provenance_request = _build_capital_exclusion_provenance_request(
+            request=request,
+            raw_record=raw_record,
+            raw_envelope=raw_envelope,
+            exclusions=exclusion_tuple,
+            domestic_projected_count=domestic_count,
+            record1_observed_count=len(rows),
+        )
     return ExplicitHoldingsCapitalNormalizationResult(
         raw_record.fact_id,
         raw_record.collected_at,
         tuple(facts),
+        exclusion_tuple,
+        provenance_request,
     )

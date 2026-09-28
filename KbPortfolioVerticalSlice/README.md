@@ -18,16 +18,25 @@ PortfolioScanner, or InvestmentResearchOrchestrator.
 - Every `Record1` row requires an exact caller-supplied account, provider
   symbol, position-class, currency, portfolio-subject, position, fact, and
   envelope binding.
-- `SSQM2952` is the verified domestic holdings path. `Record1.crncy_cd` is
-  fixed-width `String(3)`; the official sample is three ASCII spaces. Exact
-  raw `crncy_cd` is preserved without strip/overwrite. Semantic blank means
-  `raw.strip() == ""` (empty or whitespace-only). Semantic blank or exact
-  raw `KRW` is canonicalized to `KRW` only when the row has exactly one
-  explicit caller-supplied `KRW` binding for the same account, position
-  class, and provider symbol. Blank currency with an absent, ambiguous,
-  unknown, or non-KRW binding fails closed. Any other nonblank currency
-  fails closed; overseas schemas remain separate. Currency is never inferred
-  from ticker, symbol, company, blank alone, account nationality, or AI.
+- `SSQM2952` is the verified domestic holdings path. The complete raw
+  `Record1` payload is appended immutably before projection. Domestic-only
+  projection then admits only domestic-eligible rows into normalize:
+  semantic blank (`raw.strip() == ""`, including official three-space
+  `String(3)` blank) or exact raw `KRW`, with exactly one explicit caller
+  `KRW` binding for the same account, position class, and provider symbol.
+  Exact raw `crncy_cd` is preserved without strip/overwrite. Rows with
+  foreign `clsf` (`외화증권`, `외화증권(M)`) or any other nonblank non-`KRW`
+  currency (including `USD`) are excluded **before** domestic normalize and
+  leave a durable FactStore provenance fact
+  (`kb_ssqm2952_domestic_projection_exclusions`, reason
+  `EXCLUDED_NON_DOMESTIC`) — never a silent drop. Malformed domestic
+  lookalikes such as padded ` KRW` / `KRW ` still fail closed. Blank
+  currency with an absent, ambiguous, unknown, or non-KRW binding fails
+  closed. Overseas trading schemas, FX inference, and treating `외화` as
+  free cash remain out of scope. `clsf=현금` remains an equity-shaped
+  holding when domestic; free cash remains `SSQM0004`. Currency is never
+  inferred from ticker, symbol, company, blank alone, account nationality,
+  or AI.
 - Quantities are unsigned finite decimal text. `float` is never accepted.
 - One malformed, duplicate, missing, ambiguous, or unused binding rejects
   the complete canonical batch.

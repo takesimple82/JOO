@@ -376,26 +376,54 @@ class CapitalFactPlaneTests(unittest.TestCase):
             "KRW",
         )
 
-    def test_unknown_currency_fail_closed(self):
+    def test_usd_row_excluded_with_durable_provenance(self):
+        from KbCapitalFactAuthority.models import (
+            ExplicitCapitalFactBinding,
+            ExplicitHoldingsCapitalNormalizationRequest,
+        )
+
         raw = ExplicitProviderPayloadEnvelope(
             "holdings-envelope-001",
             "kb_open_api",
             "broker_fact",
             COLLECTED,
             "success",
-            holdings_payload(currency="USD"),
+            holdings_payload(currency="USD", clsf="외화증권", symbol="AAPL"),
             None,
             "holdings-corr-001",
         )
         record = self.store.append(
             ExplicitFactAppendRequest("holdings-raw-001", raw, None)
         )
-        with self.assertRaises(ValueError):
-            normalize_ssqm2952_capital_facts(
-                raw_record=record,
-                raw_envelope=raw,
-                request=holdings_capital_request(),
-            )
+        request = ExplicitHoldingsCapitalNormalizationRequest(
+            "holdings-raw-001",
+            "account-primary",
+            ExplicitCapitalFactBinding("av-f", "av-e", None),
+            (),
+            "excl-f",
+            "excl-e",
+        )
+        result = normalize_ssqm2952_capital_facts(
+            raw_record=record,
+            raw_envelope=raw,
+            request=request,
+        )
+        self.assertEqual(len(result.exclusions), 1)
+        self.assertEqual(result.exclusions[0].reason, "EXCLUDED_NON_DOMESTIC")
+        self.assertEqual(result.exclusions[0].raw_currency_code, "USD")
+        self.assertIsNotNone(result.exclusion_provenance_append_request)
+        mv = [
+            fact
+            for fact in result.facts
+            if fact.fact_kind == "kb_ssqm2952_position_market_value"
+        ]
+        self.assertEqual(mv, [])
+        excl = self.store.append(result.exclusion_provenance_append_request)
+        self.assertEqual(excl.payload["excluded_count"], 1)
+        self.assertEqual(excl.payload["domestic_projected_count"], 0)
+        self.assertEqual(
+            record.payload["dataBody"]["Record1"][0]["crncy_cd"], "USD"
+        )
 
     def test_semantic_safety_rejects_substitute_fields(self):
         for field in (

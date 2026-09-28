@@ -10,6 +10,7 @@ from FactStore.models import (
 from ProviderGateway.models import ExplicitProviderPayloadEnvelope
 
 from KbPortfolioVerticalSlice.models import (
+    ExplicitDomesticRowExclusion,
     ExplicitKbNormalizationRequest,
     ExplicitKbNormalizationResult,
     ExplicitNormalizedPosition,
@@ -21,6 +22,9 @@ from KbPortfolioVerticalSlice.validation import (
 
 _DECIMAL_TEXT = re.compile(r"^(0|[0-9]+)(\.[0-9]+)?$")
 _DOMESTIC_CURRENCY_CODE = "KRW"
+_FOREIGN_POSITION_CLASSES = frozenset({"외화증권", "외화증권(M)"})
+_EXCLUSION_REASON_NON_DOMESTIC = "EXCLUDED_NON_DOMESTIC"
+_EXCLUSION_FACT_KIND = "kb_ssqm2952_domestic_projection_exclusions"
 
 
 def _required_text(row: dict, key: str) -> str:
@@ -36,18 +40,36 @@ def _is_semantic_blank_currency(value: str) -> bool:
     return value.strip() == ""
 
 
-def _raw_currency(row: dict) -> str:
+def _read_raw_currency(row: dict) -> str:
     value = row.get("crncy_cd")
     if type(value) is not str:
         raise TypeError("crncy_cd must be str")
     # Fixed-width SSQM2952.Record1.crncy_cd is String(3). Official sample
-    # uses three ASCII spaces. Preserve raw bytes exactly; treat only
-    # semantic blank (strip() == "") or exact "KRW" as domestic candidates.
-    if _is_semantic_blank_currency(value):
-        return value
-    if value != _DOMESTIC_CURRENCY_CODE:
-        raise ValueError("unsupported SSQM2952 currency")
+    # uses three ASCII spaces. Preserve raw bytes exactly; do not strip.
     return value
+
+
+def _row_projection_disposition(
+    position_class: str, raw_currency: str
+) -> str:
+    """Classify a Record1 row before domestic normalize.
+
+    Returns:
+      "project" — domestic-eligible (semantic blank or exact KRW)
+      "exclude" — foreign / non-domestic (USD, 외화증권*, other FX)
+
+    Malformed domestic lookalikes (strip==KRW but raw is not exact KRW)
+    fail closed rather than project or silently exclude.
+    """
+    if position_class in _FOREIGN_POSITION_CLASSES:
+        return "exclude"
+    if _is_semantic_blank_currency(raw_currency):
+        return "project"
+    if raw_currency == _DOMESTIC_CURRENCY_CODE:
+        return "project"
+    if raw_currency.strip() == _DOMESTIC_CURRENCY_CODE:
+        raise ValueError("unsupported SSQM2952 currency")
+    return "exclude"
 
 
 def _quantity(raw: object) -> tuple[str, bool]:
@@ -63,6 +85,59 @@ def _quantity(raw: object) -> tuple[str, bool]:
         raise ValueError("hld_q must be finite and nonnegative")
     canonical = format(value, "f")
     return canonical, value != Decimal(0)
+
+
+def _build_exclusion_provenance_request(
+    *,
+    request: ExplicitKbNormalizationRequest,
+    raw_record: ExplicitStoredFactRecord,
+    raw_envelope: ExplicitProviderPayloadEnvelope,
+    exclusions: tuple[ExplicitDomesticRowExclusion, ...],
+    domestic_projected_count: int,
+    record1_observed_count: int,
+) -> ExplicitFactAppendRequest:
+    fact_id = request.exclusion_provenance_fact_id
+    envelope_id = request.exclusion_provenance_envelope_id
+    if type(fact_id) is not str or fact_id.strip() == "":
+        raise ValueError("exclusion provenance identity required")
+    if type(envelope_id) is not str or envelope_id.strip() == "":
+        raise ValueError("exclusion provenance identity required")
+    if fact_id == request.raw_fact_id:
+        raise ValueError("exclusion provenance fact_id collision")
+    for binding in request.position_bindings:
+        if fact_id == binding.fact_id or envelope_id == binding.envelope_id:
+            raise ValueError("exclusion provenance identity collision")
+    payload = {
+        "fact_kind": _EXCLUSION_FACT_KIND,
+        "raw_fact_id": raw_record.fact_id,
+        "raw_envelope_id": raw_record.envelope_id,
+        "account_selector": request.account_selector,
+        "record1_observed_count": record1_observed_count,
+        "domestic_projected_count": domestic_projected_count,
+        "excluded_count": len(exclusions),
+        "exclusion_reason": _EXCLUSION_REASON_NON_DOMESTIC,
+        "exclusions": [
+            {
+                "row_index": item.row_index,
+                "raw_currency_code": item.raw_currency_code,
+                "position_class": item.position_class,
+                "provider_symbol": item.provider_symbol,
+                "reason": item.reason,
+            }
+            for item in exclusions
+        ],
+    }
+    envelope = ExplicitProviderPayloadEnvelope(
+        envelope_id,
+        raw_record.provider_id,
+        "broker_fact",
+        raw_record.collected_at,
+        "success",
+        payload,
+        None,
+        raw_envelope.request_correlation_id,
+    )
+    return ExplicitFactAppendRequest(fact_id, envelope, None)
 
 
 def normalize_ssqm2952(
@@ -126,12 +201,27 @@ def normalize_ssqm2952(
         binding_by_domestic_identity.setdefault(key, []).append(item)
     seen = set()
     positions = []
-    for row in rows:
+    exclusions: list[ExplicitDomesticRowExclusion] = []
+    for row_index, row in enumerate(rows):
         if type(row) is not dict:
             raise TypeError("Record1 row must be dict")
         position_class = _required_text(row, "clsf")
         provider_symbol = _required_text(row, "is_cd")
-        raw_currency = _raw_currency(row)
+        raw_currency = _read_raw_currency(row)
+        disposition = _row_projection_disposition(
+            position_class, raw_currency
+        )
+        if disposition == "exclude":
+            exclusions.append(
+                ExplicitDomesticRowExclusion(
+                    row_index,
+                    raw_currency,
+                    position_class,
+                    provider_symbol,
+                    _EXCLUSION_REASON_NON_DOMESTIC,
+                )
+            )
+            continue
         if _is_semantic_blank_currency(raw_currency):
             candidates = binding_by_domestic_identity.get(
                 (
@@ -211,8 +301,21 @@ def normalize_ssqm2952(
         )
     if len(seen) != len(request.position_bindings):
         raise ValueError("unused explicit position binding")
+    exclusion_tuple = tuple(exclusions)
+    provenance_request = None
+    if len(exclusion_tuple) > 0:
+        provenance_request = _build_exclusion_provenance_request(
+            request=request,
+            raw_record=raw_record,
+            raw_envelope=raw_envelope,
+            exclusions=exclusion_tuple,
+            domestic_projected_count=len(positions),
+            record1_observed_count=len(rows),
+        )
     return ExplicitKbNormalizationResult(
         raw_record.fact_id,
         raw_record.collected_at,
         tuple(positions),
+        exclusion_tuple,
+        provenance_request,
     )
