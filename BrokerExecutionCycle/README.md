@@ -4,6 +4,8 @@
 plane. It consumes Block B `SealedApprovedAllocationArtifact` +
 `InvestmentHumanApproval` and fresh pre-trade facts. It does **not** live-call
 SSAM1801/1802/1805/1806 against production from default paths.
+Every mock mutation also requires a caller-owned durable pre-send appender;
+without it the mutation gate fails before transport invocation.
 
 ```text
 SealedApprovedAllocation + IHA

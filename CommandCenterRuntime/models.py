@@ -198,6 +198,7 @@ class CommandCenterReport:
     warnings: tuple[str, ...]
     created_at: datetime
     integrity_seal: str
+    artifact_references: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)

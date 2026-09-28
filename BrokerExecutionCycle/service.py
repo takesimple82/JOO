@@ -117,6 +117,7 @@ def run_broker_execution_cycle(
     status_payload: dict | None = None,
     cash_corroborated: bool | None = None,
     holdings_corroborated: bool | None = None,
+    durable_pre_send_appender=None,
 ) -> BrokerExecutionCycleResult:
     """Full product path with mock transport only.
 
@@ -202,6 +203,7 @@ def run_broker_execution_cycle(
         authority=authority,
         attempted_at=now,
         transport=transport,
+        durable_pre_send_appender=durable_pre_send_appender,
     )
     acceptance = classify_submission_outcome(
         classification_id=classification_id,

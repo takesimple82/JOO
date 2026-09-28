@@ -213,7 +213,8 @@ def run_command_center_cycle(
                 assert_retry_safe(f"STAGE_RUN:{stage}")
                 domain_ids: tuple[str, ...] = ()
                 last_exc: Exception | None = None
-                for attempt in range(MAX_SAFE_RETRIES + 1):
+                retry_safe = getattr(runner, "retry_safe", lambda _stage: True)(stage)
+                for attempt in range((MAX_SAFE_RETRIES if retry_safe else 0) + 1):
                     try:
                         domain_ids = runner(stage, primary)
                         last_exc = None

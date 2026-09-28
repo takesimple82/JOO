@@ -100,6 +100,7 @@ class IntentTeaMutationTests(unittest.TestCase):
             authority=authority,
             attempted_at=NOW,
             transport=transport,
+            durable_pre_send_appender=lambda *_: None,
         )
         self.assertTrue(authority2.consumed)
         with self.assertRaisesRegex(ValueError, FAILURE_TEA_CONSUMED):
@@ -112,6 +113,7 @@ class IntentTeaMutationTests(unittest.TestCase):
                 authority=authority2,
                 attempted_at=NOW,
                 transport=transport,
+                durable_pre_send_appender=lambda *_: None,
             )
 
     def test_live_disabled_by_default(self):
@@ -132,6 +134,7 @@ class IntentTeaMutationTests(unittest.TestCase):
                 authority=initial_mutation_authority(tea),
                 attempted_at=NOW,
                 transport=LiveMutationTransportDisabled(),
+                durable_pre_send_appender=lambda *_: None,
             )
 
     def test_acceptance_requires_flag_a_and_nonzero_ordr_no(self):

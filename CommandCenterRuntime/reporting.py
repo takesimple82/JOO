@@ -23,6 +23,7 @@ def build_command_center_report(
     checkpoint: OperationalCheckpoint | None,
     created_at: datetime,
     warnings: tuple[str, ...] = (),
+    artifact_references: tuple[tuple[str, str], ...] = (),
 ) -> CommandCenterReport:
     if type(created_at) is not datetime or created_at.tzinfo is not timezone.utc:
         raise ValueError("created_at must be UTC")
@@ -50,6 +51,7 @@ def build_command_center_report(
         "execution_status": execution_status,
         "warnings": warnings,
         "created_at": created_at,
+        "artifact_references": artifact_references,
     }
     return CommandCenterReport(
         report_id,
@@ -62,4 +64,5 @@ def build_command_center_report(
         warnings,
         created_at,
         integrity_seal(payload),
+        artifact_references,
     )

@@ -31,6 +31,8 @@ from BrokerExecutionCycle.vocabularies import (
     MUTATION_TRANSPORT_MOCK,
 )
 
+DURABLE_PRE_SEND_APPENDER_REQUIRED = "DURABLE_PRE_SEND_APPENDER_REQUIRED"
+
 
 def assert_mutation_eligible(
     *,
@@ -101,6 +103,7 @@ def execute_mutation_attempt(
     authority: MutationAuthorityState,
     attempted_at: datetime,
     transport: MutationTransport | None = None,
+    durable_pre_send_appender=None,
 ) -> tuple[BrokerSubmitAttempt, MutationAuthorityState, MutationTransportResponse]:
     """One-shot mutation. Durable pre-send record before transport call. Mock only by default."""
     assert_mutation_eligible(
@@ -132,5 +135,8 @@ def execute_mutation_attempt(
         payload_hash=translation.payload_hash,
         consumed_at=attempted_at,
     )
+    if not callable(durable_pre_send_appender):
+        raise RuntimeError(DURABLE_PRE_SEND_APPENDER_REQUIRED)
+    durable_pre_send_appender(attempt, new_authority)
     response = active.submit(translation.api_path, translation.data_body)
     return attempt, new_authority, response

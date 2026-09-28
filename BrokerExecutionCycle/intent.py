@@ -24,6 +24,8 @@ from BrokerExecutionCycle.vocabularies import (
     FORBIDDEN_ORDR_CCD,
     ORDER_INTENT_KIND_LIMIT,
     ORDR_CCD_LIMIT,
+    SIDE_BUY,
+    SIDE_SELL,
 )
 
 
@@ -44,6 +46,20 @@ def seal_limit_order_intent(
     if approval.integrity_seal != artifact.approval_integrity_seal:
         raise ValueError(FAILURE_IHA_INSUFFICIENT)
     if artifact.proposal_integrity_seal != approval.proposal_integrity_seal:
+        raise ValueError(FAILURE_IHA_INSUFFICIENT)
+    legs = tuple(
+        leg for leg in artifact.legs
+        if leg.portfolio_subject_id == portfolio_subject_id
+    )
+    if len(legs) != 1:
+        raise ValueError(FAILURE_IHA_INSUFFICIENT)
+    approved_delta = (
+        legs[0].delta_market_value_krw if side == SIDE_BUY
+        else -legs[0].delta_market_value_krw if side == SIDE_SELL
+        else None
+    )
+    if (approved_delta is None or approved_delta <= Decimal("0")
+            or validation.approved_notional_krw != approved_delta):
         raise ValueError(FAILURE_IHA_INSUFFICIENT)
     if not validation.passed:
         raise ValueError(FAILURE_PRETRADE_STALE)

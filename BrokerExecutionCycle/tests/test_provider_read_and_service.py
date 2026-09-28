@@ -104,6 +104,7 @@ class ServiceCycleTests(unittest.TestCase):
             now=NOW,
             principal="human-operator",
             transport=MockMutationTransport(),
+            durable_pre_send_appender=lambda *_: None,
         )
         self.assertEqual(result.result_kind, "success")
         self.assertIsNotNone(result.order_intent)
