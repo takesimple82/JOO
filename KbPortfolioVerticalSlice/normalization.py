@@ -32,13 +32,20 @@ def _required_text(row: dict, key: str) -> str:
     return value
 
 
+def _is_semantic_blank_currency(value: str) -> bool:
+    return value.strip() == ""
+
+
 def _raw_currency(row: dict) -> str:
     value = row.get("crncy_cd")
     if type(value) is not str:
         raise TypeError("crncy_cd must be str")
-    if value != "" and value.strip() == "":
-        raise ValueError("crncy_cd must be blank or KRW")
-    if value not in ("", _DOMESTIC_CURRENCY_CODE):
+    # Fixed-width SSQM2952.Record1.crncy_cd is String(3). Official sample
+    # uses three ASCII spaces. Preserve raw bytes exactly; treat only
+    # semantic blank (strip() == "") or exact "KRW" as domestic candidates.
+    if _is_semantic_blank_currency(value):
+        return value
+    if value != _DOMESTIC_CURRENCY_CODE:
         raise ValueError("unsupported SSQM2952 currency")
     return value
 
@@ -125,7 +132,7 @@ def normalize_ssqm2952(
         position_class = _required_text(row, "clsf")
         provider_symbol = _required_text(row, "is_cd")
         raw_currency = _raw_currency(row)
-        if raw_currency == "":
+        if _is_semantic_blank_currency(raw_currency):
             candidates = binding_by_domestic_identity.get(
                 (
                     request.account_selector,

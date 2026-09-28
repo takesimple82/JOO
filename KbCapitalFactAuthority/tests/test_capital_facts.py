@@ -341,6 +341,41 @@ class CapitalFactPlaneTests(unittest.TestCase):
         )
         self.store.get_by_fact_id("balances-raw-001")
 
+    def test_official_fixed_width_blank_currency_maps_to_krw(self):
+        # Capital/Portfolio semantic consistency: whitespace-only String(3)
+        # blank is domestic KRW candidate; raw broker payload stays untouched.
+        raw = ExplicitProviderPayloadEnvelope(
+            "holdings-envelope-001",
+            "kb_open_api",
+            "broker_fact",
+            COLLECTED,
+            "success",
+            holdings_payload(currency="   "),
+            None,
+            "holdings-corr-001",
+        )
+        record = self.store.append(
+            ExplicitFactAppendRequest("holdings-raw-001", raw, None)
+        )
+        result = normalize_ssqm2952_capital_facts(
+            raw_record=record,
+            raw_envelope=raw,
+            request=holdings_capital_request(),
+        )
+        self.assertEqual(
+            record.payload["dataBody"]["Record1"][0]["crncy_cd"],
+            "   ",
+        )
+        mv = [
+            fact
+            for fact in result.facts
+            if fact.fact_kind == "kb_ssqm2952_position_market_value"
+        ][0]
+        self.assertEqual(
+            mv.append_request.envelope.payload["currency_code"],
+            "KRW",
+        )
+
     def test_unknown_currency_fail_closed(self):
         raw = ExplicitProviderPayloadEnvelope(
             "holdings-envelope-001",

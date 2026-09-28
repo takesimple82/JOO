@@ -18,12 +18,16 @@ PortfolioScanner, or InvestmentResearchOrchestrator.
 - Every `Record1` row requires an exact caller-supplied account, provider
   symbol, position-class, currency, portfolio-subject, position, fact, and
   envelope binding.
-- `SSQM2952` is the verified domestic holdings path. Its exact raw
-  `crncy_cd` is preserved. A raw empty string is canonicalized to `KRW` only
-  when the row has exactly one explicit caller-supplied `KRW` binding for the
-  same account, position class, and provider symbol. Blank currency with an
-  absent, ambiguous, unknown, or non-KRW binding fails closed. Nonblank
-  currency must be exactly `KRW`; overseas schemas remain separate.
+- `SSQM2952` is the verified domestic holdings path. `Record1.crncy_cd` is
+  fixed-width `String(3)`; the official sample is three ASCII spaces. Exact
+  raw `crncy_cd` is preserved without strip/overwrite. Semantic blank means
+  `raw.strip() == ""` (empty or whitespace-only). Semantic blank or exact
+  raw `KRW` is canonicalized to `KRW` only when the row has exactly one
+  explicit caller-supplied `KRW` binding for the same account, position
+  class, and provider symbol. Blank currency with an absent, ambiguous,
+  unknown, or non-KRW binding fails closed. Any other nonblank currency
+  fails closed; overseas schemas remain separate. Currency is never inferred
+  from ticker, symbol, company, blank alone, account nationality, or AI.
 - Quantities are unsigned finite decimal text. `float` is never accepted.
 - One malformed, duplicate, missing, ambiguous, or unused binding rejects
   the complete canonical batch.
