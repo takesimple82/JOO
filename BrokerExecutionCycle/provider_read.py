@@ -16,13 +16,21 @@ from BrokerExecutionCycle.models import (
 from BrokerExecutionCycle.vocabularies import (
     AMOUNT_PRESENCE_MISSING,
     AMOUNT_PRESENCE_PRESENT,
+    BROKER_FIELD_CCLS_NTC_CCD,
+    BROKER_FIELD_CRCT_CNCL_CCD,
+    BROKER_FIELD_NCCLS_Q,
     BROKER_FIELD_NOW_PRC,
     BROKER_FIELD_ORDR_PSBL_CSH,
     BROKER_FIELD_ORDR_PSBL_Q,
+    BROKER_FIELD_ORDR_Q_STATUS,
+    BROKER_FIELD_ORGN_ORDR_NO,
+    BROKER_FIELD_TL_CCLS_Q,
     BROKER_FIELD_TRD_Q_UNT,
     CURRENCY_KRW,
     FAILURE_MISSING_TRADE_UNIT,
+    FILL_CLAIM_FULL,
     FILL_CLAIM_NONE,
+    FILL_CLAIM_PARTIAL,
     FILL_CLAIM_UNKNOWN,
     MKT_TM_CLSF_REGULAR,
     PROCESS_FLAG_ACCEPT,
@@ -204,6 +212,44 @@ def normalize_sellable_quantity(
     )
 
 
+def _normalize_order_no(raw: object) -> str | None:
+    if type(raw) is not str:
+        return None
+    stripped = raw.strip()
+    if stripped == "":
+        return None
+    return stripped
+
+
+def _order_nos_equal(a: str | None, b: str | None) -> bool:
+    if a is None or b is None:
+        return False
+    # Compare without leading zeros while preserving all-zero ≠ nonzero.
+    sa = a.lstrip("0") or "0"
+    sb = b.lstrip("0") or "0"
+    return sa == sb
+
+
+def _classify_fill_from_excel_qty(
+    *,
+    ordered: Decimal,
+    filled: Decimal,
+    remaining: Decimal,
+) -> str:
+    """Excel fields ordr_q / tl_ccls_q / nccls_q only. No HTTP inference."""
+    if ordered < Decimal("0") or filled < Decimal("0") or remaining < Decimal("0"):
+        return FILL_CLAIM_UNKNOWN
+    if filled + remaining != ordered:
+        return FILL_CLAIM_UNKNOWN
+    if filled == Decimal("0") and remaining == ordered:
+        return FILL_CLAIM_NONE
+    if filled == ordered and remaining == Decimal("0"):
+        return FILL_CLAIM_FULL
+    if filled > Decimal("0") and remaining > Decimal("0"):
+        return FILL_CLAIM_PARTIAL
+    return FILL_CLAIM_UNKNOWN
+
+
 def normalize_ssqm2341_status(
     *,
     fact_id: str,
@@ -213,7 +259,7 @@ def normalize_ssqm2341_status(
     collected_at: datetime,
     raw_envelope_id: str,
 ) -> OrderStatusFact:
-    """§19 SSQM2341 — fail closed / UNKNOWN when samples insufficient for fill claims."""
+    """SSQM2341 — Excel qty fields only; HTTP/processFlag alone ≠ fill."""
     if type(payload) is not dict:
         raise TypeError("payload must be dict")
     header = payload.get("dataHeader")
@@ -223,26 +269,78 @@ def normalize_ssqm2341_status(
     process_flag = header.get("processFlag")
     if type(process_flag) is not str:
         process_flag = None
-    broker_order_no = body.get("ordr_no")
-    if type(broker_order_no) is not str:
-        broker_order_no = None
+    broker_order_no = _normalize_order_no(body.get("ordr_no"))
     raw_message = body.get("o_msg")
     if type(raw_message) is not str:
         raw_message = None
+
+    fill_claim = FILL_CLAIM_UNKNOWN
+    filled_qty = None
+    filled_amount = None
+    ordered_qty = None
+    remaining_qty = None
+    matched_ordr_no = None
+    orgn_ordr_no = None
+    raw_ccls_ntc_ccd = None
+    raw_crct_cncl_ccd = None
+
     records = body.get("Record1")
-    # Sample fixture has empty Record1 and processFlag B — insufficient for fill certainty.
-    if type(records) is not list or len(records) == 0:
-        fill_claim = FILL_CLAIM_UNKNOWN
-        filled_qty = None
-        filled_amount = None
+    matched = None
+    if process_flag == PROCESS_FLAG_ACCEPT and type(records) is list and len(records) > 0:
+        query = _normalize_order_no(query_order_no)
+        for row in records:
+            if type(row) is not dict:
+                continue
+            row_no = _normalize_order_no(row.get("ordr_no"))
+            if query is None:
+                # Without a query order id, a multi-row grid is ambiguous.
+                if len(records) == 1:
+                    matched = row
+                    break
+                matched = None
+                break
+            if _order_nos_equal(query, row_no):
+                matched = row
+                break
+        if matched is not None:
+            matched_ordr_no = _normalize_order_no(matched.get("ordr_no"))
+            orgn_ordr_no = _normalize_order_no(matched.get(BROKER_FIELD_ORGN_ORDR_NO))
+            ntc = matched.get(BROKER_FIELD_CCLS_NTC_CCD)
+            raw_ccls_ntc_ccd = ntc.strip() if type(ntc) is str else None
+            crct = matched.get(BROKER_FIELD_CRCT_CNCL_CCD)
+            raw_crct_cncl_ccd = crct.strip() if type(crct) is str else None
+            try:
+                ordered_qty = _parse_unsigned_decimal(
+                    matched.get(BROKER_FIELD_ORDR_Q_STATUS),
+                    field=BROKER_FIELD_ORDR_Q_STATUS,
+                )
+                filled_qty = _parse_unsigned_decimal(
+                    matched.get(BROKER_FIELD_TL_CCLS_Q),
+                    field=BROKER_FIELD_TL_CCLS_Q,
+                )
+                remaining_qty = _parse_unsigned_decimal(
+                    matched.get(BROKER_FIELD_NCCLS_Q),
+                    field=BROKER_FIELD_NCCLS_Q,
+                )
+                fill_claim = _classify_fill_from_excel_qty(
+                    ordered=ordered_qty,
+                    filled=filled_qty,
+                    remaining=remaining_qty,
+                )
+                # Prefer matched row order no over header body ordr_no.
+                if matched_ordr_no is not None:
+                    broker_order_no = matched_ordr_no
+            except ValueError:
+                fill_claim = FILL_CLAIM_UNKNOWN
+                filled_qty = None
+                ordered_qty = None
+                remaining_qty = None
+        else:
+            fill_claim = FILL_CLAIM_UNKNOWN
     else:
-        # Without documented fill qty fields proven in samples, do not overclaim.
+        # Empty Record1, processFlag≠A, or malformed — UNKNOWN (official sample case).
         fill_claim = FILL_CLAIM_UNKNOWN
-        filled_qty = None
-        filled_amount = None
-    if process_flag != PROCESS_FLAG_ACCEPT:
-        # Rejected/error query — still UNKNOWN for fill; state observation only.
-        fill_claim = FILL_CLAIM_UNKNOWN
+
     seal_payload = {
         "fact_id": fact_id,
         "query_order_no": query_order_no,
@@ -252,6 +350,12 @@ def normalize_ssqm2341_status(
         "fill_claim": fill_claim,
         "filled_qty": filled_qty,
         "filled_amount_krw": filled_amount,
+        "ordered_qty": ordered_qty,
+        "remaining_qty": remaining_qty,
+        "matched_ordr_no": matched_ordr_no,
+        "orgn_ordr_no": orgn_ordr_no,
+        "raw_ccls_ntc_ccd": raw_ccls_ntc_ccd,
+        "raw_crct_cncl_ccd": raw_crct_cncl_ccd,
         "raw_message": raw_message,
         "collected_at": collected_at,
         "raw_envelope_id": raw_envelope_id,
@@ -265,6 +369,12 @@ def normalize_ssqm2341_status(
         fill_claim,
         filled_qty,
         filled_amount,
+        ordered_qty,
+        remaining_qty,
+        matched_ordr_no,
+        orgn_ordr_no,
+        raw_ccls_ntc_ccd,
+        raw_crct_cncl_ccd,
         raw_message,
         collected_at,
         raw_envelope_id,

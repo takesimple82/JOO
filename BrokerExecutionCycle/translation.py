@@ -6,6 +6,10 @@ from BrokerExecutionCycle.models import (
     SsamRequestTranslation,
     VerifiedExecutionAccountBinding,
 )
+from BrokerExecutionCycle.authority_evidence import (
+    SSAM_ACCOUNT_BINDING_FIELD,
+    SSAM_EXCEL_REQUIRED_INPUT_FIELDS,
+)
 from BrokerExecutionCycle.vocabularies import (
     API_PATH_SSAM1801,
     API_PATH_SSAM1802,
@@ -52,10 +56,16 @@ def translate_order_intent_to_ssam(
     order_intent: OrderIntent,
     account: VerifiedExecutionAccountBinding,
 ) -> SsamRequestTranslation:
-    """§14 documented SSAM fields only. Unresolved account → NOT READY."""
+    """SSAM translation: Excel required INPUT + sample-observed account field.
+
+    Account binding field is gnl_ac_no1 (SAMPLE_OBSERVED; Excel INPUT omits it).
+    OrderIntent/TEA must map the verified binding exactly — no heuristic.
+    """
     unresolved: list[str] = []
     if order_intent.ordr_ccd != ORDR_CCD_LIMIT:
         raise ValueError(FAILURE_ORDR_CCD_FORBIDDEN)
+    if SSAM_ACCOUNT_BINDING_FIELD != SSAM_FIELD_GNL_AC_NO1:
+        raise RuntimeError(FAILURE_UNRESOLVED_SSAM_FIELD)
     if account.mutation_eligible is not True or account.gnl_ac_no1.strip() == "":
         unresolved.append(SSAM_FIELD_GNL_AC_NO1)
     if order_intent.side == SIDE_BUY:
@@ -89,9 +99,15 @@ def translate_order_intent_to_ssam(
         SSAM_FIELD_SOR_ORDR_CCD: sor,
     }
     ready = len(unresolved) == 0
-    if not ready:
-        # Fail closed: do not pretend ready with blank account.
-        pass
+    if ready:
+        for field in SSAM_EXCEL_REQUIRED_INPUT_FIELDS:
+            if field not in data_body or data_body[field] in ("", None):
+                unresolved.append(field)
+                ready = False
+        # Intent/TEA account seal must equal binding used for gnl_ac_no1.
+        if data_body.get(SSAM_FIELD_GNL_AC_NO1) != account.gnl_ac_no1:
+            unresolved.append(SSAM_FIELD_GNL_AC_NO1)
+            ready = False
     payload_for_hash = {
         "api_path": api_path,
         "data_body": data_body,

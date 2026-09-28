@@ -59,6 +59,25 @@ acceptance / rejection / unknown / status / fill / reconciliation kinds.
 No live SSAM mutation by default, no JOO-Automation, no Controller/Bridge,
 no second DB, no float, no AI arithmetic, no Block A/B/B0 semantic drift.
 
+## Phase 2 pre-live authority closure (A–G)
+
+Evidence sources: official KB Excel (`all_kbstock_excel-20260812-101425.xlsx`) +
+sample ZIP (`all_kbstock_sample (1).zip`). Never invent missing broker semantics.
+`LiveMutationTransportDisabled` remains true — no real SSAM submit/cancel/modify.
+
+| ID | Authority | Closure |
+| --- | --- | --- |
+| A | SSAM account-field | `gnl_ac_no1` SAMPLE_OBSERVED (Excel INPUT omits); OrderIntent/TEA exact bind; Excel required INPUT enforced; unknown FAIL CLOSED |
+| B | SSQM2341 fill | Excel qty `ordr_q`/`tl_ccls_q`/`nccls_q` only when processFlag=A + matched Record1; HTTP alone ≠ fill; undocumented enums raw/UNKNOWN |
+| C | KB native idempotency | NONE_DOCUMENTED; JOO uses TEA one-shot + durable pre-send |
+| D | Cancel/modify | SSAM1805/1806 + Excel `crct_clsf` 1/2; draft only; `DEFERRED_NO_AUTO_POLICY` |
+| E | HumanAttention / UNKNOWN | `QUERY_RECOVER_THEN_HUMAN_IF_AMBIGUOUS`; never auto-resubmit |
+| F | Credential / allowlist | no secret logging; allowlisted `gnl_ac_no1` only; mismatch FAIL CLOSED |
+| G | Shadow dry-run | intent→binding→qty→SSAM body→live-disabled boundary→shadow ack/recon; `real_mutation_submitted=False` |
+
+See `authority_evidence.py`, `account_allowlist.py`, `kb_idempotency.py`,
+`shadow_dry_run.py`, and `tests/test_phase2_authority_closure.py`.
+
 ## Verification
 
 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s BrokerExecutionCycle/tests -q`

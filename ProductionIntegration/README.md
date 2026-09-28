@@ -29,10 +29,14 @@ to CapitalAllocationCycle. Broker status and reconciliation are READ-only.
 There is no alternate EV arithmetic, allocation logic, execution engine, or
 automatic approval/authorization.
 
-Known broker contract uncertainties remain fail-closed: unverified SSAM
-account authority, undocumented process flags, unresolved positive SSQM2341
-fill semantics, native KB idempotency, cancel/modify policy, and market orders.
-The production default remains `LiveMutationTransportDisabled`.
+Phase 2 pre-live broker authorities A–G are closed in `BrokerExecutionCycle`
+(`authority_evidence.py`): sample-observed `gnl_ac_no1` account binding with
+Excel-required SSAM INPUT fields; SSQM2341 qty-based fill claims only;
+KB native idempotency NONE_DOCUMENTED; cancel/modify draft-only with
+DEFERRED_NO_AUTO_POLICY; UNKNOWN → QUERY_RECOVER_THEN_HUMAN_IF_AMBIGUOUS;
+credential allowlist FAIL CLOSED; shadow dry-run without real mutation.
+Market orders remain forbidden (LIMIT_ONLY). The production default remains
+`LiveMutationTransportDisabled`.
 
 Human-attention records are immutable safety evidence. Block E deliberately
 does not infer that an item is resolved from a later event; without a separate

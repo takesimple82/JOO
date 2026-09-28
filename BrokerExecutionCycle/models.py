@@ -58,6 +58,12 @@ class OrderStatusFact:
     fill_claim: str
     filled_qty: Decimal | None
     filled_amount_krw: Decimal | None
+    ordered_qty: Decimal | None
+    remaining_qty: Decimal | None
+    matched_ordr_no: str | None
+    orgn_ordr_no: str | None
+    raw_ccls_ntc_ccd: str | None
+    raw_crct_cncl_ccd: str | None
     raw_message: str | None
     collected_at: datetime
     raw_envelope_id: str
