@@ -6,6 +6,7 @@ from BrokerExecutionCycle.models import (
     SsamRequestTranslation,
     VerifiedExecutionAccountBinding,
 )
+from BrokerExecutionCycle.account_binding import require_mutation_eligible_account
 from BrokerExecutionCycle.authority_evidence import (
     SSAM_ACCOUNT_BINDING_FIELD,
     SSAM_EXCEL_REQUIRED_INPUT_FIELDS,
@@ -66,7 +67,9 @@ def translate_order_intent_to_ssam(
         raise ValueError(FAILURE_ORDR_CCD_FORBIDDEN)
     if SSAM_ACCOUNT_BINDING_FIELD != SSAM_FIELD_GNL_AC_NO1:
         raise RuntimeError(FAILURE_UNRESOLVED_SSAM_FIELD)
-    if account.mutation_eligible is not True or account.gnl_ac_no1.strip() == "":
+    try:
+        require_mutation_eligible_account(account)
+    except (TypeError, ValueError):
         unresolved.append(SSAM_FIELD_GNL_AC_NO1)
     if order_intent.side == SIDE_BUY:
         api_path = API_PATH_SSAM1802
@@ -138,3 +141,21 @@ def translate_order_intent_to_ssam(
         order_intent.integrity_seal,
         integrity_seal(seal_payload),
     )
+
+
+def verify_ssam_translation(
+    *,
+    translation: SsamRequestTranslation,
+    order_intent: OrderIntent,
+    account: VerifiedExecutionAccountBinding,
+) -> None:
+    """Require the exact deterministic translation of the sealed intent/account."""
+    if type(translation) is not SsamRequestTranslation:
+        raise TypeError("SsamRequestTranslation required")
+    expected = translate_order_intent_to_ssam(
+        translation_id=translation.translation_id,
+        order_intent=order_intent,
+        account=account,
+    )
+    if translation != expected:
+        raise ValueError("PAYLOAD_HASH_MISMATCH")

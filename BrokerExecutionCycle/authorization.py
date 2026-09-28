@@ -21,6 +21,7 @@ from BrokerExecutionCycle.vocabularies import (
     FAILURE_TEA_REPLAY,
     FAILURE_TEA_SEAL_MISMATCH,
 )
+from BrokerExecutionCycle.intent import verify_order_intent_integrity
 
 
 def issue_trade_execution_authorization(
@@ -91,9 +92,32 @@ def assert_tea_binds_intent(
     tea: TradeExecutionAuthorization,
     order_intent: OrderIntent,
 ) -> None:
+    if type(tea) is not TradeExecutionAuthorization:
+        raise TypeError("TradeExecutionAuthorization required")
+    verify_order_intent_integrity(order_intent)
+    payload = {
+        "authorization_id": tea.authorization_id,
+        "order_intent_id": tea.order_intent_id,
+        "order_intent_seal": tea.order_intent_seal,
+        "allocation_artifact_id": tea.allocation_artifact_id,
+        "allocation_artifact_seal": tea.allocation_artifact_seal,
+        "approval_id": tea.approval_id,
+        "approval_seal": tea.approval_seal,
+        "account_binding_id": tea.account_binding_id,
+        "account_binding_seal": tea.account_binding_seal,
+        "authorized_at": tea.authorized_at,
+        "principal": tea.principal,
+        "one_shot": tea.one_shot,
+    }
+    if integrity_seal(payload) != tea.integrity_seal:
+        raise ValueError(FAILURE_TEA_SEAL_MISMATCH)
     if tea.order_intent_id != order_intent.intent_id:
         raise ValueError(FAILURE_TEA_SEAL_MISMATCH)
     if tea.order_intent_seal != order_intent.integrity_seal:
+        raise ValueError(FAILURE_TEA_SEAL_MISMATCH)
+    if tea.account_binding_id != order_intent.account_binding_id:
+        raise ValueError(FAILURE_TEA_SEAL_MISMATCH)
+    if tea.account_binding_seal != order_intent.account_binding_seal:
         raise ValueError(FAILURE_TEA_SEAL_MISMATCH)
 
 

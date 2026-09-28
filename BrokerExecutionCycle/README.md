@@ -6,6 +6,11 @@ plane. It consumes Block B `SealedApprovedAllocationArtifact` +
 SSAM1801/1802/1805/1806 against production from default paths.
 Every mock mutation also requires a caller-owned durable pre-send appender;
 without it the mutation gate fails before transport invocation.
+The final mutation gate recomputes the account, OrderIntent, TEA, and SSAM
+translation bindings, requires the explicit execution-account allowlist, and
+accepts the exact local `MockMutationTransport` type only. A caller cannot
+raise the frozen 100,000,000 KRW absolute exposure cap through the validation
+override seam; an override may only make the cap stricter.
 
 ```text
 SealedApprovedAllocation + IHA

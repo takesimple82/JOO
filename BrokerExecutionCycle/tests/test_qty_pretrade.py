@@ -110,6 +110,46 @@ class PreTradeMatrixTests(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertIn(FAILURE_EXPOSURE_CAP, [f.code for f in result.findings])
 
+    def test_exposure_override_cannot_raise_absolute_hard_cap(self):
+        bundle = make_pretrade_bundle(cash_amount="200000000")
+        result = validate_pretrade(
+            validation_id="v-hard-cap-override",
+            bundle=bundle,
+            side=SIDE_BUY,
+            approved_notional_krw=Decimal("150000000"),
+            validated_at=NOW,
+            max_exposure_krw=Decimal("1000000000"),
+        )
+        self.assertFalse(result.passed)
+        self.assertIn(FAILURE_EXPOSURE_CAP, [f.code for f in result.findings])
+
+    def test_absolute_hard_cap_exact_edge_passes(self):
+        bundle = make_pretrade_bundle(
+            limit_price="1", cash_amount="100000000", trade_unit="1"
+        )
+        result = validate_pretrade(
+            validation_id="v-hard-cap-edge",
+            bundle=bundle,
+            side=SIDE_BUY,
+            approved_notional_krw=Decimal("100000000"),
+            validated_at=NOW,
+        )
+        self.assertTrue(result.passed)
+        self.assertEqual(result.derived_notional_krw, Decimal("100000000"))
+
+    def test_exposure_override_may_only_make_cap_stricter(self):
+        bundle = make_pretrade_bundle(cash_amount="50000000")
+        result = validate_pretrade(
+            validation_id="v-stricter-cap",
+            bundle=bundle,
+            side=SIDE_BUY,
+            approved_notional_krw=Decimal("10000000"),
+            validated_at=NOW,
+            max_exposure_krw=Decimal("5000000"),
+        )
+        self.assertFalse(result.passed)
+        self.assertIn(FAILURE_EXPOSURE_CAP, [f.code for f in result.findings])
+
     def test_unverified_account_blocks(self):
         from BrokerExecutionCycle.tests.helpers import unverified_account
         from BrokerExecutionCycle.vocabularies import FAILURE_ACCOUNT_UNVERIFIED

@@ -127,11 +127,21 @@ def validate_pretrade(
     raw_qty = None
     derived_qty = None
     derived_notional = None
-    exposure_cap = (
-        Decimal(HIP_V1_MAX_EXPOSURE_KRW)
-        if max_exposure_krw is None
-        else max_exposure_krw
-    )
+    hard_cap = Decimal(HIP_V1_MAX_EXPOSURE_KRW)
+    if max_exposure_krw is None:
+        exposure_cap = hard_cap
+    elif (
+        type(max_exposure_krw) is not Decimal
+        or not max_exposure_krw.is_finite()
+        or max_exposure_krw <= Decimal("0")
+        or max_exposure_krw > hard_cap
+    ):
+        exposure_cap = hard_cap
+        findings.append(
+            _finding(FAILURE_EXPOSURE_CAP, CONSTRAINT_FAIL, "invalid exposure override")
+        )
+    else:
+        exposure_cap = max_exposure_krw
 
     if side not in (SIDE_BUY, SIDE_SELL):
         findings.append(_finding(FAILURE_SIDE_INVALID, CONSTRAINT_FAIL, "side"))

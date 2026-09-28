@@ -137,6 +137,7 @@ def recover_joo_command_center_state(*, journal, state_id):
 
 def run_mock_broker_submission_dry_run(
     *, journal, source_event_id, order_intent, trade_authorization, account,
+    account_allowlist,
     attempt_id, classification_id, now, transport,
     status_payload=None, cash_corroborated=None, holdings_corroborated=None,
 ):
@@ -172,6 +173,7 @@ def run_mock_broker_submission_dry_run(
     attempt, authority, response = execute_mutation_attempt(
         attempt_id=attempt_id, tea=trade_authorization,
         order_intent=order_intent, translation=translation, account=account,
+        account_allowlist=account_allowlist,
         authority=authority, attempted_at=now, transport=transport,
         durable_pre_send_appender=persist_before_send,
     )

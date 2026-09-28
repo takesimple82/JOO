@@ -6,6 +6,12 @@ from BrokerExecutionCycle.authorization import (
     assert_tea_binds_intent,
     consume_one_shot,
 )
+from BrokerExecutionCycle.account_allowlist import (
+    ExecutionAccountAllowlist,
+    require_account_on_allowlist,
+)
+from BrokerExecutionCycle.account_binding import require_mutation_eligible_account
+from BrokerExecutionCycle.translation import verify_ssam_translation
 from BrokerExecutionCycle.integrity import integrity_seal
 from BrokerExecutionCycle.models import (
     BrokerSubmitAttempt,
@@ -16,6 +22,7 @@ from BrokerExecutionCycle.models import (
     VerifiedExecutionAccountBinding,
 )
 from BrokerExecutionCycle.mutation_transport import (
+    MockMutationTransport,
     MutationTransport,
     MutationTransportResponse,
     default_mutation_transport,
@@ -23,7 +30,6 @@ from BrokerExecutionCycle.mutation_transport import (
 from BrokerExecutionCycle.vocabularies import (
     FAILURE_ACCOUNT_UNVERIFIED,
     FAILURE_LIVE_MUTATION_DISABLED,
-    FAILURE_PAYLOAD_HASH_MISMATCH,
     FAILURE_TEA_CONSUMED,
     FAILURE_TEA_MISSING,
     FAILURE_UNRESOLVED_SSAM_FIELD,
@@ -40,19 +46,23 @@ def assert_mutation_eligible(
     order_intent: OrderIntent,
     translation: SsamRequestTranslation,
     account: VerifiedExecutionAccountBinding,
+    account_allowlist: ExecutionAccountAllowlist,
     authority: MutationAuthorityState,
 ) -> None:
     if tea is None:
         raise ValueError(FAILURE_TEA_MISSING)
     assert_tea_binds_intent(tea, order_intent)
-    if account.mutation_eligible is not True:
+    require_mutation_eligible_account(account)
+    require_account_on_allowlist(account, account_allowlist)
+    if order_intent.account_binding_id != account.binding_id:
+        raise ValueError(FAILURE_ACCOUNT_UNVERIFIED)
+    if order_intent.account_binding_seal != account.integrity_seal:
         raise ValueError(FAILURE_ACCOUNT_UNVERIFIED)
     if not translation.ready:
         raise ValueError(FAILURE_UNRESOLVED_SSAM_FIELD)
-    if translation.payload_hash == "":
-        raise ValueError(FAILURE_PAYLOAD_HASH_MISMATCH)
-    if translation.order_intent_seal != order_intent.integrity_seal:
-        raise ValueError(FAILURE_PAYLOAD_HASH_MISMATCH)
+    verify_ssam_translation(
+        translation=translation, order_intent=order_intent, account=account
+    )
     if authority.consumed:
         raise ValueError(FAILURE_TEA_CONSUMED)
 
@@ -100,6 +110,7 @@ def execute_mutation_attempt(
     order_intent: OrderIntent,
     translation: SsamRequestTranslation,
     account: VerifiedExecutionAccountBinding,
+    account_allowlist: ExecutionAccountAllowlist,
     authority: MutationAuthorityState,
     attempted_at: datetime,
     transport: MutationTransport | None = None,
@@ -111,14 +122,21 @@ def execute_mutation_attempt(
         order_intent=order_intent,
         translation=translation,
         account=account,
+        account_allowlist=account_allowlist,
         authority=authority,
     )
     active = transport if transport is not None else default_mutation_transport()
     mode = getattr(active, "mode", MUTATION_TRANSPORT_LIVE_DISABLED)
     if mode == MUTATION_TRANSPORT_LIVE_DISABLED:
         raise RuntimeError(FAILURE_LIVE_MUTATION_DISABLED)
-    if mode != MUTATION_TRANSPORT_MOCK:
+    if type(active) is not MockMutationTransport or mode != MUTATION_TRANSPORT_MOCK:
         raise RuntimeError(FAILURE_LIVE_MUTATION_DISABLED)
+
+    # Freeze the already-verified wire values before the persistence callback.
+    # The dataclass is frozen, but its data_body dict is intentionally copied to
+    # close a mutation/time-of-check-to-time-of-use seam.
+    api_path = translation.api_path
+    request_body = dict(translation.data_body)
 
     attempt = record_pre_send_attempt(
         attempt_id=attempt_id,
@@ -138,5 +156,5 @@ def execute_mutation_attempt(
     if not callable(durable_pre_send_appender):
         raise RuntimeError(DURABLE_PRE_SEND_APPENDER_REQUIRED)
     durable_pre_send_appender(attempt, new_authority)
-    response = active.submit(translation.api_path, translation.data_body)
+    response = active.submit(api_path, request_body)
     return attempt, new_authority, response

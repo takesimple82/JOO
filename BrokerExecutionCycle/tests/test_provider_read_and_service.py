@@ -17,6 +17,7 @@ from BrokerExecutionCycle.tests.helpers import (
     make_pretrade_bundle,
     sealed_chain,
     verified_account,
+    verified_account_allowlist,
 )
 from BrokerExecutionCycle.vocabularies import (
     ACCEPTANCE_ACCEPTED,
@@ -101,6 +102,7 @@ class ServiceCycleTests(unittest.TestCase):
             artifact=artifact,
             approval=approval,
             account=verified_account(),
+            account_allowlist=verified_account_allowlist(),
             now=NOW,
             principal="human-operator",
             transport=MockMutationTransport(),

@@ -103,5 +103,22 @@ def require_mutation_eligible_account(
         raise ValueError(FAILURE_ACCOUNT_UNVERIFIED)
     if binding.status != ACCOUNT_BINDING_VERIFIED:
         raise ValueError(FAILURE_ACCOUNT_UNVERIFIED)
-    if binding.gnl_ac_no1.strip() == "":
+    if type(binding.gnl_ac_no1) is not str or binding.gnl_ac_no1.strip() == "":
+        raise ValueError(FAILURE_ACCOUNT_UNVERIFIED)
+    if not binding.gnl_ac_no1.isdigit():
+        raise ValueError(FAILURE_ACCOUNT_UNVERIFIED)
+    if binding.verified_at is None:
+        raise ValueError(FAILURE_ACCOUNT_UNVERIFIED)
+    if type(binding.verification_method) is not str or binding.verification_method.strip() == "":
+        raise ValueError(FAILURE_ACCOUNT_UNVERIFIED)
+    payload = {
+        "binding_id": binding.binding_id,
+        "account_selector": binding.account_selector,
+        "gnl_ac_no1": binding.gnl_ac_no1,
+        "status": binding.status,
+        "verified_at": binding.verified_at,
+        "verification_method": binding.verification_method,
+        "mutation_eligible": binding.mutation_eligible,
+    }
+    if integrity_seal(payload) != binding.integrity_seal:
         raise ValueError(FAILURE_ACCOUNT_UNVERIFIED)

@@ -134,3 +134,39 @@ def seal_limit_order_intent(
         sealed_at,
         integrity_seal(payload),
     )
+
+
+def verify_order_intent_integrity(order_intent: OrderIntent) -> None:
+    """Recompute the complete immutable intent surface before mutation."""
+    if type(order_intent) is not OrderIntent:
+        raise TypeError("OrderIntent required")
+    payload = {
+        "intent_id": order_intent.intent_id,
+        "side": order_intent.side,
+        "order_kind": order_intent.order_kind,
+        "ordr_ccd": order_intent.ordr_ccd,
+        "portfolio_subject_id": order_intent.portfolio_subject_id,
+        "ssam_is_cd": order_intent.ssam_is_cd,
+        "limit_price": order_intent.limit_price,
+        "quantity": order_intent.quantity,
+        "approved_notional_krw": order_intent.approved_notional_krw,
+        "derived_notional_krw": order_intent.derived_notional_krw,
+        "currency_code": order_intent.currency_code,
+        "allocation_artifact_id": order_intent.allocation_artifact_id,
+        "allocation_artifact_seal": order_intent.allocation_artifact_seal,
+        "approval_id": order_intent.approval_id,
+        "approval_seal": order_intent.approval_seal,
+        "pretrade_validation_id": order_intent.pretrade_validation_id,
+        "pretrade_validation_seal": order_intent.pretrade_validation_seal,
+        "proposed_limit_price_id": order_intent.proposed_limit_price_id,
+        "proposed_limit_price_seal": order_intent.proposed_limit_price_seal,
+        "account_binding_id": order_intent.account_binding_id,
+        "account_binding_seal": order_intent.account_binding_seal,
+        "instrument_binding_id": order_intent.instrument_binding_id,
+        "instrument_binding_seal": order_intent.instrument_binding_seal,
+        "sealed_at": order_intent.sealed_at,
+        "ordr_no": None,
+        "fill": None,
+    }
+    if integrity_seal(payload) != order_intent.integrity_seal:
+        raise ValueError("ORDER_INTENT_INTEGRITY_MISMATCH")

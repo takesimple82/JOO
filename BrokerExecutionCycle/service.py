@@ -9,6 +9,7 @@ from CapitalAllocationCycle.models import (
 )
 
 from BrokerExecutionCycle.acceptance import classify_submission_outcome
+from BrokerExecutionCycle.account_allowlist import ExecutionAccountAllowlist
 from BrokerExecutionCycle.authorization import (
     initial_mutation_authority,
     issue_trade_execution_authorization,
@@ -111,6 +112,7 @@ def run_broker_execution_cycle(
     artifact: SealedApprovedAllocationArtifact,
     approval: InvestmentHumanApproval,
     account: VerifiedExecutionAccountBinding,
+    account_allowlist: ExecutionAccountAllowlist,
     now: datetime,
     principal: str,
     transport: MutationTransport,
@@ -200,6 +202,7 @@ def run_broker_execution_cycle(
         order_intent=intent,
         translation=translation,
         account=account,
+        account_allowlist=account_allowlist,
         authority=authority,
         attempted_at=now,
         transport=transport,

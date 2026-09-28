@@ -8,9 +8,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from BrokerExecutionCycle.models import VerifiedExecutionAccountBinding
+from BrokerExecutionCycle.account_binding import require_mutation_eligible_account
 from BrokerExecutionCycle.vocabularies import (
     ACCOUNT_ALLOWLIST_MISMATCH,
-    FAILURE_ACCOUNT_UNVERIFIED,
 )
 
 
@@ -52,8 +52,7 @@ def require_account_on_allowlist(
         raise TypeError("account binding required")
     if type(allowlist) is not ExecutionAccountAllowlist:
         raise TypeError("allowlist required")
-    if binding.mutation_eligible is not True:
-        raise ValueError(FAILURE_ACCOUNT_UNVERIFIED)
+    require_mutation_eligible_account(binding)
     if binding.gnl_ac_no1 not in allowlist.allowed_gnl_ac_no1:
         raise ValueError(ACCOUNT_ALLOWLIST_MISMATCH)
 

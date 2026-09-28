@@ -195,6 +195,15 @@ def verified_account():
     )
 
 
+def verified_account_allowlist():
+    from BrokerExecutionCycle.account_allowlist import seal_execution_account_allowlist
+
+    return seal_execution_account_allowlist(
+        allowlist_id="allowlist-test",
+        allowed_gnl_ac_no1=("400277078",),
+    )
+
+
 def unverified_account():
     return seal_unverified_account_binding(
         binding_id="acct-bind-unverified",
