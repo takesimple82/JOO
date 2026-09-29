@@ -14,7 +14,7 @@ from BrokerExecutionCycle.authorization import initial_mutation_authority
 from BrokerExecutionCycle.mutation_gate import execute_mutation_attempt
 from BrokerExecutionCycle.translation import translate_order_intent_to_ssam
 from BrokerExecutionCycle.service import authorize_trade_execution, run_pretrade_validation, seal_order_intent_from_approval_chain
-from BrokerExecutionCycle.tests.helpers import NOW as BROKER_NOW, make_pretrade_bundle, sealed_chain, verified_account, verified_account_allowlist
+from BrokerExecutionCycle.tests.helpers import NOW as BROKER_NOW, make_pretrade_bundle, sealed_chain, verified_account, verified_account_allowlist, fresh_cash_fact
 from CommandCenterRuntime.integrity import integrity_seal as command_center_seal
 from CommandCenterRuntime.models import DetectedChange, PortfolioQuantityFact, ProviderFailureFact
 from CommandCenterRuntime.service import CommandCenterCycleRequest
@@ -356,6 +356,7 @@ class ProductionIntegrationTests(unittest.TestCase):
             journal=self.journal, source_event_id="dry-event", order_intent=intent,
             trade_authorization=tea, account=account, attempt_id="attempt-dry",
             account_allowlist=verified_account_allowlist(),
+                fresh_orderable_cash=fresh_cash_fact(),
             classification_id="accept-dry", now=NOW, transport=transport,
         )
         self.assertEqual(result.acceptance.outcome, "ACCEPTED")
@@ -369,6 +370,7 @@ class ProductionIntegrationTests(unittest.TestCase):
                 journal=self.journal, source_event_id="retry", order_intent=intent,
                 trade_authorization=tea, account=account, attempt_id="attempt-retry",
                 account_allowlist=verified_account_allowlist(),
+                fresh_orderable_cash=fresh_cash_fact(),
                 classification_id="accept-retry", now=NOW,
                 transport=MockMutationTransport(),
             )
@@ -380,6 +382,7 @@ class ProductionIntegrationTests(unittest.TestCase):
             journal=self.journal, source_event_id="unknown-event", order_intent=intent,
             trade_authorization=tea, account=account, attempt_id="attempt-unknown",
             account_allowlist=verified_account_allowlist(),
+                fresh_orderable_cash=fresh_cash_fact(),
             classification_id="unknown", now=NOW, transport=transport,
         )
         self.assertEqual(result.acceptance.outcome, "SUBMISSION_OUTCOME_UNKNOWN")
@@ -414,6 +417,7 @@ class ProductionIntegrationTests(unittest.TestCase):
                     attempt_id=f"attempt-concurrent-{index}", tea=tea,
                     order_intent=intent, translation=translation, account=account,
                     account_allowlist=verified_account_allowlist(),
+                fresh_orderable_cash=fresh_cash_fact(),
                     authority=initial_mutation_authority(tea), attempted_at=NOW,
                     transport=transports[index], durable_pre_send_appender=persist,
                 )
@@ -446,6 +450,7 @@ class ProductionIntegrationTests(unittest.TestCase):
                 journal=self.journal, source_event_id="live", order_intent=intent,
                 trade_authorization=tea, account=account, attempt_id="attempt-live",
                 account_allowlist=verified_account_allowlist(),
+                fresh_orderable_cash=fresh_cash_fact(),
                 classification_id="live", now=NOW,
                 transport=LiveMutationTransportDisabled(),
             )

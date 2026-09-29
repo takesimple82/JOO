@@ -86,3 +86,10 @@ See `authority_evidence.py`, `account_allowlist.py`, `kb_idempotency.py`,
 ## Verification
 
 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s BrokerExecutionCycle/tests -q`
+
+## Phase 4 gates (live still disabled)
+
+- JIT TEA: `tea_freshness.assert_jit_fresh_facts_permit_exact_execution` required at mutation gate; fresh SSQM0004.`ordr_psbl_csh` under ORDERABLE_CASH_FULL; exact intent only; fail closed.
+- Open LIMIT: `open_limit_monitor` → HumanAttention only; `DEFERRED_NO_AUTO_POLICY` preserved.
+- `gnl_ac_no1`: AUTHORITY_NOT_CLOSED / LIVE_BLOCKER (Excel omit; sample conflict).
+- `LiveMutationTransportDisabled` remains default; mock/shadow only.

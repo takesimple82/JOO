@@ -321,3 +321,17 @@ def make_pretrade_bundle(
         proposed_limit_price=proposed,
         collected_at=NOW,
     )
+
+
+def fresh_cash_fact(amount="50000000"):
+    """JIT-ready SSQM0004.ordr_psbl_csh fact for mutation-gate tests."""
+    cash_payload = {
+        "dataHeader": {"processFlag": "A"},
+        "dataBody": {"ordr_psbl_csh": amount},
+    }
+    return normalize_orderable_cash(
+        fact_id="cash-jit-001",
+        payload=cash_payload,
+        collected_at=NOW,
+        raw_envelope_id="env-cash-jit-001",
+    )

@@ -12,11 +12,14 @@ from BrokerExecutionCycle.account_allowlist import (
 )
 from BrokerExecutionCycle.account_binding import require_mutation_eligible_account
 from BrokerExecutionCycle.translation import verify_ssam_translation
+from BrokerExecutionCycle.tea_freshness import assert_jit_fresh_facts_permit_exact_execution
 from BrokerExecutionCycle.integrity import integrity_seal
 from BrokerExecutionCycle.models import (
     BrokerSubmitAttempt,
     MutationAuthorityState,
     OrderIntent,
+    OrderableCashFact,
+    SellableQuantityFact,
     SsamRequestTranslation,
     TradeExecutionAuthorization,
     VerifiedExecutionAccountBinding,
@@ -48,6 +51,9 @@ def assert_mutation_eligible(
     account: VerifiedExecutionAccountBinding,
     account_allowlist: ExecutionAccountAllowlist,
     authority: MutationAuthorityState,
+    fresh_orderable_cash: OrderableCashFact,
+    fresh_sellable: SellableQuantityFact | None,
+    refreshed_at: datetime,
 ) -> None:
     if tea is None:
         raise ValueError(FAILURE_TEA_MISSING)
@@ -58,6 +64,14 @@ def assert_mutation_eligible(
         raise ValueError(FAILURE_ACCOUNT_UNVERIFIED)
     if order_intent.account_binding_seal != account.integrity_seal:
         raise ValueError(FAILURE_ACCOUNT_UNVERIFIED)
+    assert_jit_fresh_facts_permit_exact_execution(
+        tea=tea,
+        order_intent=order_intent,
+        account=account,
+        fresh_orderable_cash=fresh_orderable_cash,
+        fresh_sellable=fresh_sellable,
+        refreshed_at=refreshed_at,
+    )
     if not translation.ready:
         raise ValueError(FAILURE_UNRESOLVED_SSAM_FIELD)
     verify_ssam_translation(
@@ -113,6 +127,8 @@ def execute_mutation_attempt(
     account_allowlist: ExecutionAccountAllowlist,
     authority: MutationAuthorityState,
     attempted_at: datetime,
+    fresh_orderable_cash: OrderableCashFact,
+    fresh_sellable: SellableQuantityFact | None = None,
     transport: MutationTransport | None = None,
     durable_pre_send_appender=None,
 ) -> tuple[BrokerSubmitAttempt, MutationAuthorityState, MutationTransportResponse]:
@@ -124,6 +140,9 @@ def execute_mutation_attempt(
         account=account,
         account_allowlist=account_allowlist,
         authority=authority,
+        fresh_orderable_cash=fresh_orderable_cash,
+        fresh_sellable=fresh_sellable,
+        refreshed_at=attempted_at,
     )
     active = transport if transport is not None else default_mutation_transport()
     mode = getattr(active, "mode", MUTATION_TRANSPORT_LIVE_DISABLED)

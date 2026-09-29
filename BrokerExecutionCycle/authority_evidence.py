@@ -49,6 +49,33 @@ SSAM_EXCEL_REQUIRED_INPUT_FIELDS = (
 SSAM_ACCOUNT_BINDING_FIELD = "gnl_ac_no1"
 SSAM_ACCOUNT_FIELD_PROVENANCE = PROVENANCE_SAMPLE_OBSERVED
 
+# Phase 4 FOURTH GATE — gnl_ac_no1 authority investigation (READ-ONLY).
+# Outcome: AUTHORITY_NOT_CLOSED → LIVE_BLOCKER (do not weaken).
+#
+# Exhaustive evidence (Excel SHA f9d723f9… / sample ZIP SHA 36eef9fe…):
+# - Excel SSAM1801/1802/1805/1806 INPUT tables omit gnl_ac_no1 entirely.
+# - Excel OUTPUT lists acct_cd (계정코드) but not gnl_ac_no1.
+# - Sample SSAM1802 successful buy observes input+output gnl_ac_no1="400277078".
+# - Sample SSAM1806 successful cancel observes input gnl_ac_no1="" (blank) yet
+#   processFlag=A — so sample success does NOT prove the field is required.
+# - Sample SSAM1801/1805 failures also omit/blank the field.
+# - READ APIs SSQM0004/SSQM2952/SSQM1801 take no account field (OAuth-bound).
+# - SSQM2442 sample uses gnl_ac_no (no trailing 1); SSQM0005 returns ac_no
+#   "40027707801" (gnl + product suffix) — related identity, not SSAM INPUT authority.
+# - Public portal guide does not document SSAM mutation account-field binding.
+# - Third-party wrappers are not official KB authority.
+#
+# Therefore: meaning/requiredness/acceptedness of gnl_ac_no1 for SSAM mutation
+# cannot be closed without heuristics or inventing broker semantics.
+GNL_AC_NO1_AUTHORITY_STATUS = "AUTHORITY_NOT_CLOSED"
+GNL_AC_NO1_LIVE_BLOCKER = True
+GNL_AC_NO1_AUTHORITY_DETAIL = (
+    "Excel omits gnl_ac_no1 from SSAM INPUT; samples conflict (buy populated / "
+    "cancel blank+success); OAuth may bind READ; no official mutation-binding "
+    "field proven. LIVE_BLOCKER until AUTHORITY_CLOSED."
+)
+
+
 # B — SSQM2341 positive fill semantics (Excel Record1 field names; no enum tables)
 SSQM2341_QTY_ORDERED_FIELD = "ordr_q"
 SSQM2341_QTY_FILLED_FIELD = "tl_ccls_q"

@@ -196,6 +196,8 @@ def run_broker_execution_cycle(
             None,
         )
 
+    # JIT refresh surface for this helper: caller-supplied PreTradeFactBundle facts
+    # collected for this transaction. Production paths must pass freshly READ facts.
     attempt, _authority, response = execute_mutation_attempt(
         attempt_id=attempt_id,
         tea=tea,
@@ -205,6 +207,8 @@ def run_broker_execution_cycle(
         account_allowlist=account_allowlist,
         authority=authority,
         attempted_at=now,
+        fresh_orderable_cash=bundle.orderable_cash,
+        fresh_sellable=bundle.sellable,
         transport=transport,
         durable_pre_send_appender=durable_pre_send_appender,
     )

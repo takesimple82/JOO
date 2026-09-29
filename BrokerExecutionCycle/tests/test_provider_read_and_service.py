@@ -18,6 +18,7 @@ from BrokerExecutionCycle.tests.helpers import (
     sealed_chain,
     verified_account,
     verified_account_allowlist,
+    fresh_cash_fact,
 )
 from BrokerExecutionCycle.vocabularies import (
     ACCEPTANCE_ACCEPTED,

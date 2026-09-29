@@ -214,3 +214,26 @@ ATTENTION_CATEGORIES = (
     ATTENTION_POLICY_CONFLICT,
     ATTENTION_DATA_INTEGRITY_FAILURE,
 )
+
+
+def open_limit_requires_human_attention(
+    *,
+    attention_id: str,
+    wake_event_id: str,
+    bound_record_ids: tuple[str, ...],
+    subject_ids: tuple[str, ...],
+    created_at: datetime,
+    detail: str,
+):
+    """Escalate open LIMIT to HumanAttention. Never auto cancel/modify."""
+    from CommandCenterRuntime.vocabularies import ATTENTION_OPEN_LIMIT_REQUIRES_HUMAN
+
+    return seal_human_attention_item(
+        attention_id=attention_id,
+        category=ATTENTION_OPEN_LIMIT_REQUIRES_HUMAN,
+        wake_event_id=wake_event_id,
+        bound_record_ids=bound_record_ids,
+        subject_ids=subject_ids,
+        created_at=created_at,
+        detail=detail,
+    )

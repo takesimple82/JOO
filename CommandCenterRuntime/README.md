@@ -51,3 +51,8 @@ no Block E / final E2E / live trading activation.
 ## Verification
 
 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s CommandCenterRuntime/tests -q`
+
+## Phase 4 durable ownership
+
+- `SqliteDurableOwnershipLease` (`durable_lease.py`): SQLite-backed exclusive lease, atomic acquire, owner identity, TTL=`DURABLE_LEASE_TTL_SECONDS` (300s crash-recovery bound only; not investment policy), owner-only release, corrupt→fail closed.
+- In-process `ExclusiveCycleLock` remains for unit tests; production restart-safe paths use SQLite.

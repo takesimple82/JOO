@@ -137,7 +137,7 @@ def recover_joo_command_center_state(*, journal, state_id):
 
 def run_mock_broker_submission_dry_run(
     *, journal, source_event_id, order_intent, trade_authorization, account,
-    account_allowlist,
+    account_allowlist, fresh_orderable_cash, fresh_sellable=None,
     attempt_id, classification_id, now, transport,
     status_payload=None, cash_corroborated=None, holdings_corroborated=None,
 ):
@@ -175,6 +175,7 @@ def run_mock_broker_submission_dry_run(
         order_intent=order_intent, translation=translation, account=account,
         account_allowlist=account_allowlist,
         authority=authority, attempted_at=now, transport=transport,
+        fresh_orderable_cash=fresh_orderable_cash, fresh_sellable=fresh_sellable,
         durable_pre_send_appender=persist_before_send,
     )
     acceptance = classify_submission_outcome(

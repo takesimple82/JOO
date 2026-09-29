@@ -25,6 +25,7 @@ from BrokerExecutionCycle.tests.helpers import (
     sealed_chain,
     verified_account,
     verified_account_allowlist,
+    fresh_cash_fact,
 )
 from BrokerExecutionCycle.translation import translate_order_intent_to_ssam
 from BrokerExecutionCycle.vocabularies import (
@@ -101,6 +102,7 @@ class IntentTeaMutationTests(unittest.TestCase):
             translation=translation,
             account=account,
             account_allowlist=verified_account_allowlist(),
+                fresh_orderable_cash=fresh_cash_fact(),
             authority=authority,
             attempted_at=NOW,
             transport=transport,
@@ -115,6 +117,7 @@ class IntentTeaMutationTests(unittest.TestCase):
                 translation=translation,
                 account=account,
                 account_allowlist=verified_account_allowlist(),
+                fresh_orderable_cash=fresh_cash_fact(),
                 authority=authority2,
                 attempted_at=NOW,
                 transport=transport,
@@ -137,6 +140,7 @@ class IntentTeaMutationTests(unittest.TestCase):
                 translation=translation,
                 account=account,
                 account_allowlist=verified_account_allowlist(),
+                fresh_orderable_cash=fresh_cash_fact(),
                 authority=initial_mutation_authority(tea),
                 attempted_at=NOW,
                 transport=LiveMutationTransportDisabled(),
@@ -210,6 +214,7 @@ class IntentTeaMutationTests(unittest.TestCase):
                 attempt_id="att-forged-account", tea=tea, order_intent=intent,
                 translation=translation, account=forged,
                 account_allowlist=verified_account_allowlist(),
+                fresh_orderable_cash=fresh_cash_fact(),
                 authority=initial_mutation_authority(tea), attempted_at=NOW,
                 transport=MockMutationTransport(),
                 durable_pre_send_appender=lambda *_: None,
@@ -231,6 +236,7 @@ class IntentTeaMutationTests(unittest.TestCase):
                 account_allowlist=seal_execution_account_allowlist(
                     allowlist_id="other-account", allowed_gnl_ac_no1=("999999999",),
                 ),
+                fresh_orderable_cash=fresh_cash_fact(),
                 authority=initial_mutation_authority(tea), attempted_at=NOW,
                 transport=transport, durable_pre_send_appender=lambda *_: None,
             )
@@ -272,6 +278,7 @@ class IntentTeaMutationTests(unittest.TestCase):
                         attempt_id="att-forged-payload", tea=tea,
                         order_intent=intent, translation=forged, account=account,
                         account_allowlist=verified_account_allowlist(),
+                fresh_orderable_cash=fresh_cash_fact(),
                         authority=initial_mutation_authority(tea), attempted_at=NOW,
                         transport=MockMutationTransport(),
                         durable_pre_send_appender=lambda *_: None,
@@ -295,6 +302,7 @@ class IntentTeaMutationTests(unittest.TestCase):
                 attempt_id="att-mode-spoof", tea=tea, order_intent=intent,
                 translation=translation, account=account,
                 account_allowlist=verified_account_allowlist(),
+                fresh_orderable_cash=fresh_cash_fact(),
                 authority=initial_mutation_authority(tea), attempted_at=NOW,
                 transport=DisguisedTransport(),
                 durable_pre_send_appender=lambda *_: None,
@@ -319,6 +327,7 @@ class IntentTeaMutationTests(unittest.TestCase):
                         order_intent=forged_intent, translation=translation,
                         account=account,
                         account_allowlist=verified_account_allowlist(),
+                fresh_orderable_cash=fresh_cash_fact(),
                         authority=initial_mutation_authority(forged_tea),
                         attempted_at=NOW, transport=transport,
                         durable_pre_send_appender=lambda *_: None,
@@ -341,6 +350,7 @@ class IntentTeaMutationTests(unittest.TestCase):
                 attempt_id="att-disk-failure", tea=tea, order_intent=intent,
                 translation=translation, account=account,
                 account_allowlist=verified_account_allowlist(),
+                fresh_orderable_cash=fresh_cash_fact(),
                 authority=initial_mutation_authority(tea), attempted_at=NOW,
                 transport=transport, durable_pre_send_appender=fail_persistence,
             )
@@ -362,6 +372,7 @@ class IntentTeaMutationTests(unittest.TestCase):
             attempt_id="att-toctou", tea=tea, order_intent=intent,
             translation=translation, account=account,
             account_allowlist=verified_account_allowlist(),
+                fresh_orderable_cash=fresh_cash_fact(),
             authority=initial_mutation_authority(tea), attempted_at=NOW,
             transport=transport, durable_pre_send_appender=mutate_after_verification,
         )
