@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JOO Command Center</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div><p class="eyebrow">PERSONAL AI CIO</p><h1>JOO Command Center</h1></div>
+    <div class="top-status"><span id="modeBadge" class="badge"></span><span class="badge blocked">LIVE BLOCKED</span></div>
+  </header>
+  <main id="app" aria-live="polite">
+    <section class="loading">Loading verified command state…</section>
+  </main>
+  <template id="layout">
+    <section class="alert blocked-alert"><strong>Execution is LIVE BLOCKED</strong><span id="blocker"></span></section>
+    <section class="metrics" id="metrics"></section>
+    <div class="grid two-one">
+      <section class="panel"><div class="section-head"><div><p class="eyebrow">FACT PLANE</p><h2>Portfolio</h2></div><span id="refresh"></span></div><div class="table-wrap"><table><thead><tr><th>Security</th><th>Quantity</th><th>Market value</th><th>Weight</th><th>Cap</th></tr></thead><tbody id="positions"></tbody></table></div></section>
+      <section class="panel"><p class="eyebrow">HUMAN CONTROL PLANE</p><h2>Attention</h2><div id="attention"></div></section>
+    </div>
+    <div class="grid equal">
+      <section class="panel"><p class="eyebrow">DECISION PLANE</p><h2>JOO CIO</h2><div id="cio"></div></section>
+      <section class="panel"><p class="eyebrow">CHANGE DETECTION</p><h2>What changed?</h2><div id="change"></div></section>
+    </div>
+    <div class="grid equal">
+      <section class="panel"><p class="eyebrow">CAPITAL</p><h2>Allocation authority</h2><div id="capital"></div></section>
+      <section class="panel"><p class="eyebrow">EXECUTION</p><h2>Human gates</h2><div id="execution"></div></section>
+    </div>
+    <div class="grid equal">
+      <section class="panel"><p class="eyebrow">EXPECTED VALUE</p><h2>Authoritative opportunity records</h2><div id="ev"></div></section>
+      <section class="panel"><p class="eyebrow">CAPITAL ALLOCATION</p><h2>Proposal &amp; investment approval</h2><div id="allocation"></div></section>
+    </div>
+    <div class="grid equal">
+      <section class="panel"><p class="eyebrow">EVIDENCE FIRST</p><h2>Provenance</h2><div id="evidence"></div></section>
+      <section class="panel"><p class="eyebrow">OPERATIONS</p><h2>System health</h2><div id="health"></div></section>
+    </div>
+    <section class="panel"><p class="eyebrow">EXCLUSION PROVENANCE</p><h2>Foreign assets kept outside canonical KRW portfolio</h2><div id="exclusions"></div></section>
+  </template>
+</body>
+</html>
