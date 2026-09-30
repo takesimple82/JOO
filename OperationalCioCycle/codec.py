@@ -30,6 +30,7 @@ _MODULES = (
     "BrokerExecutionCycle.models",
     "CommandCenterRuntime.models",
     "CommandCenterReadOnlyOperation.models",
+    "CommandCenterAiDecisionOperation.models",
 )
 _TYPES = {}
 for _name in _MODULES:

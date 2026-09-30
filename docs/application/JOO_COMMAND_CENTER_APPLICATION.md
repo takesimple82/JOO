@@ -25,6 +25,19 @@ The real producer is a separate process documented in
 publication boundary: incomplete FactStore-only writes cannot silently become
 the application's current portfolio view.
 
+Phase 8 adds a second separate operation documented in
+`CommandCenterAiDecisionOperation/README.md`. It binds an immutable factual
+evidence package to the journal-ordered active observation. The existing
+`OperationalCioCycle` remains the only successful provider/committee/Exact EV
+CIO path. When no authorized provider exists, the operation persists only a
+truthful unavailable/blocked attempt. The API exposes that state through
+`ai_pipeline`; JavaScript performs no research or investment calculation.
+
+REAL-mode decision, EV, allocation, and approval artifacts are admitted to the
+view only when their snapshot/decision chain matches the active factual
+observation. A later factual observation cannot silently inherit an older CIO
+or allocation result.
+
 This slice adds no public-network deployment, authentication system, broker
 mutation, approval action, TEA issuance, portfolio automation, or replacement
 for durable production ownership. Those remain outside this application's

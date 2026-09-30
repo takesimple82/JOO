@@ -26,6 +26,7 @@ from CommandCenterRuntime.models import (
 from InvestmentDecisionVerticalSlice.models import (
     CioDecisionRecord,
     ExactEvRecord,
+    JournalRecordKind,
     OpportunityEvaluation,
 )
 from KbCapitalFactAuthority.models import ExplicitCapitalSnapshot
@@ -37,11 +38,14 @@ from KbCapitalFactAuthority.vocabularies import (
     FACT_KIND_ORDERABLE_CASH,
     FACT_KIND_POSITION_MARKET_VALUE,
 )
+from CommandCenterAiDecisionOperation.models import AiCioDecisionAttempt
+from CommandCenterReadOnlyOperation.models import ReadOnlyObservation
 
 from CommandCenterApplication.models import (
     APPLICATION_MODES,
     MODE_FIXTURE,
     AllocationView,
+    AiPipelineView,
     ApplicationDataset,
     ApprovalView,
     AttentionView,
@@ -289,26 +293,91 @@ def build_command_center_view(dataset: ApplicationDataset) -> CommandCenterView:
     change = ChangeView(classification, tuple(changes), None if report is None else report.created_at.isoformat())
 
     decision_rows = _artifact_rows(dataset, CioDecisionRecord)
-    decision_row = max(decision_rows, key=lambda x: x[0].created_at) if decision_rows else None
+    if dataset.mode != MODE_FIXTURE:
+        decision_rows = tuple(
+            row for row in decision_rows
+            if row[0].kind == JournalRecordKind.OPERATIONAL_CIO_CYCLE.value
+            and row[1].snapshot_id == dataset.active_portfolio_snapshot_id
+        )
+    decision_row = max(
+        decision_rows,
+        key=lambda x: (
+            -1 if x[0].sequence is None else x[0].sequence,
+            x[0].created_at,
+            x[1].decision_id,
+        ),
+    ) if decision_rows else None
     decision = None if decision_row is None else decision_row[1]
+    attempt_rows = tuple(
+        row for row in _artifact_rows(dataset, AiCioDecisionAttempt)
+        if row[1].evidence_package.observation_id == dataset.active_observation_id
+    )
+    attempt_row = max(
+        attempt_rows,
+        key=lambda x: (
+            -1 if x[0].sequence is None else x[0].sequence,
+            x[0].created_at,
+            x[1].attempt_id,
+        ),
+    ) if attempt_rows else None
+    attempt = None if attempt_row is None else attempt_row[1]
+    decision_sequence = -1 if decision_row is None or decision_row[0].sequence is None else decision_row[0].sequence
+    attempt_sequence = -1 if attempt_row is None or attempt_row[0].sequence is None else attempt_row[0].sequence
+    if attempt_sequence > decision_sequence:
+        decision = None
+        decision_row = None
+    elif decision is not None:
+        attempt = None
+        attempt_row = None
     cio_state = "UNAVAILABLE"
     if decision is not None:
         cio_state = "EXECUTABLE" if decision.executable else "NON_EXECUTABLE"
         if decision.unresolved_reasons:
             cio_state = "BLOCKED"
+    elif attempt is not None:
+        cio_state = attempt.cio_state
     cio = CioView(
         cio_state,
         None if decision is None else decision.posture.value,
         None if decision is None else decision.what_changed,
-        None if decision is None else decision.why_it_matters,
+        (
+            "Authorized research/committee evidence is unavailable; no investment "
+            "decision was synthesized."
+            if decision is None and attempt is not None
+            else None if decision is None else decision.why_it_matters
+        ),
         None if decision is None else decision.superior_opportunity_id,
-        () if decision is None else decision.unresolved_reasons,
-        () if decision is None else decision.narrative_reference_ids,
-        None if decision is None else decision.decision_id,
-        None if decision_row is None else decision_row[0].created_at.isoformat(),
+        attempt.blocker_codes if decision is None and attempt is not None else () if decision is None else decision.unresolved_reasons,
+        attempt.evidence_package.fact_ids if decision is None and attempt is not None else () if decision is None else decision.narrative_reference_ids,
+        attempt.attempt_id if decision is None and attempt is not None else None if decision is None else decision.decision_id,
+        attempt.created_at.isoformat() if decision is None and attempt is not None else None if decision_row is None else decision_row[0].created_at.isoformat(),
+    )
+
+    ai_pipeline = AiPipelineView(
+        dataset.active_observation_id,
+        None if attempt is None else attempt.evidence_package.package_id,
+        (
+            attempt.research_state if attempt is not None
+            else "COMPLETE" if decision is not None else "UNAVAILABLE"
+        ),
+        (
+            attempt.committee_state if attempt is not None
+            else "COMPLETE" if decision is not None else "UNAVAILABLE"
+        ),
+        (
+            attempt.contradiction_state if attempt is not None
+            else "RESOLVED" if decision is not None else "UNAVAILABLE"
+        ),
+        () if attempt is None else attempt.blocker_codes,
     )
 
     evaluations = _artifacts(dataset, OpportunityEvaluation)
+    if dataset.mode != MODE_FIXTURE:
+        allowed_ev_ids = set() if decision is None else set(decision.ev_record_ids)
+        evaluations = tuple(
+            item for item in evaluations
+            if item.ev_record is not None and item.ev_record.record_id in allowed_ev_ids
+        )
     evs = []
     for evaluation in evaluations:
         record = evaluation.ev_record
@@ -329,8 +398,34 @@ def build_command_center_view(dataset: ApplicationDataset) -> CommandCenterView:
             record_id,
         ))
 
-    proposals = _artifacts(dataset, CapitalAllocationProposal)
-    proposal = proposals[-1] if proposals else None
+    proposal_rows = _artifact_rows(dataset, CapitalAllocationProposal)
+    if dataset.mode != MODE_FIXTURE:
+        decision_id = None if decision is None else decision.decision_id
+        current_capital_ids = {
+            row.artifact.capital_snapshot.capital_snapshot_id
+            for row in dataset.artifacts
+            if type(row.artifact) is ReadOnlyObservation
+            and row.artifact.observation_id == dataset.active_observation_id
+        }
+        proposal_rows = tuple(
+            row for row in proposal_rows
+            if row[0].kind == JournalRecordKind.CAPITAL_ALLOCATION_PROPOSAL.value
+            and row[0].sequence is not None
+            and row[0].sequence > decision_sequence
+            and decision_id is not None
+            and bool(allowed_ev_ids)
+            and decision_id in row[1].cio_decision_ids
+            and row[1].capital_snapshot_id in current_capital_ids
+        )
+    proposal_row = max(
+        proposal_rows,
+        key=lambda x: (
+            -1 if x[0].sequence is None else x[0].sequence,
+            x[0].created_at,
+            x[1].proposal_id,
+        ),
+    ) if proposal_rows else None
+    proposal = None if proposal_row is None else proposal_row[1]
     allocation = AllocationView(
         "UNAVAILABLE" if proposal is None else "PROPOSED",
         None if proposal is None else proposal.proposal_id,
@@ -349,8 +444,26 @@ def build_command_center_view(dataset: ApplicationDataset) -> CommandCenterView:
         } for x in proposal.legs),
     )
 
-    approvals = _artifacts(dataset, InvestmentHumanApproval)
-    approval = _latest(approvals, "decided_at")
+    approval_rows = _artifact_rows(dataset, InvestmentHumanApproval)
+    if dataset.mode != MODE_FIXTURE:
+        proposal_sequence = -1 if proposal_row is None or proposal_row[0].sequence is None else proposal_row[0].sequence
+        approval_rows = tuple(
+            row for row in approval_rows
+            if row[0].kind == JournalRecordKind.INVESTMENT_HUMAN_APPROVAL.value
+            and row[0].sequence is not None
+            and row[0].sequence > proposal_sequence
+            and proposal is not None
+            and row[1].proposal_id == proposal.proposal_id
+        )
+    approval_row = max(
+        approval_rows,
+        key=lambda x: (
+            -1 if x[0].sequence is None else x[0].sequence,
+            x[0].created_at,
+            x[1].approval_id,
+        ),
+    ) if approval_rows else None
+    approval = None if approval_row is None else approval_row[1]
     approval_view = ApprovalView(
         "NOT_ISSUED" if approval is None else approval.decision,
         None if approval is None else approval.approval_id,
@@ -453,6 +566,7 @@ def build_command_center_view(dataset: ApplicationDataset) -> CommandCenterView:
             cash_evidence,
         ),
         change,
+        ai_pipeline,
         cio,
         tuple(evs),
         allocation,

@@ -85,7 +85,7 @@ def _canonical(payload):
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def _decode_record_artifacts(record_id, kind, created_at, payload) -> tuple[JournalArtifact, ...]:
+def _decode_record_artifacts(sequence, record_id, kind, created_at, payload) -> tuple[JournalArtifact, ...]:
     encoded = []
     if set(payload) == {"version", "source_event_id", "artifact"} and payload["version"] == 1:
         encoded.append(payload["artifact"])
@@ -101,7 +101,7 @@ def _decode_record_artifacts(record_id, kind, created_at, payload) -> tuple[Jour
             artifact = decode(item)
         except Exception as exc:
             raise ValueError("decision artifact decode failed") from exc
-        artifacts.append(JournalArtifact(record_id, kind, created_at, artifact))
+        artifacts.append(JournalArtifact(record_id, kind, created_at, artifact, sequence))
     return tuple(artifacts)
 
 
@@ -110,7 +110,7 @@ def read_verified_journal(path) -> tuple[tuple[JournalArtifact, ...], int]:
     connection = _read_only_connection(database)
     try:
         rows = connection.execute(
-            "SELECT record_id,kind,created_at,payload_json,previous_seal,integrity_seal "
+            "SELECT sequence,record_id,kind,created_at,payload_json,previous_seal,integrity_seal "
             "FROM decision_records ORDER BY sequence"
         ).fetchall()
     except sqlite3.Error as exc:
@@ -121,16 +121,16 @@ def read_verified_journal(path) -> tuple[tuple[JournalArtifact, ...], int]:
     artifacts = []
     for row in rows:
         try:
-            payload = json.loads(row[3])
-            created_at = datetime.fromisoformat(row[2])
-            JournalRecordKind(row[1])
+            payload = json.loads(row[4])
+            created_at = datetime.fromisoformat(row[3])
+            JournalRecordKind(row[2])
         except Exception as exc:
             raise ValueError("DecisionJournal decode failed") from exc
         canonical = _canonical(payload)
-        if row[4] != previous or row[5] != _journal_seal(row[0], row[1], row[2], canonical, row[4]):
+        if row[5] != previous or row[6] != _journal_seal(row[1], row[2], row[3], canonical, row[5]):
             raise ValueError("DecisionJournal integrity chain mismatch")
-        artifacts.extend(_decode_record_artifacts(row[0], row[1], created_at, payload))
-        previous = row[5]
+        artifacts.extend(_decode_record_artifacts(row[0], row[1], row[2], created_at, payload))
+        previous = row[6]
     return tuple(artifacts), len(rows)
 
 
@@ -151,10 +151,21 @@ def load_real_read_only_dataset(*, fact_store_path, journal_path, now) -> Applic
         for x in facts
     )
     if phase7_facts and not observations:
-        raise ValueError("Phase 7 facts have no published observation")
+        facts = ()
     if observations:
-        observation = max(observations, key=lambda x: x.created_at)
-        validate_read_only_observation(observation)
+        rows = tuple(
+            item for item in artifacts
+            if type(item.artifact) is ReadOnlyObservation
+        )
+        if any(item.sequence is None for item in rows):
+            raise ValueError("read-only observation journal sequence missing")
+        observation_ids = set()
+        for item in rows:
+            validate_read_only_observation(item.artifact)
+            if item.artifact.observation_id in observation_ids:
+                raise ValueError("duplicate read-only observation identity")
+            observation_ids.add(item.artifact.observation_id)
+        observation = max(rows, key=lambda x: x.sequence).artifact
         by_id = {x.fact_id: x for x in facts}
         missing = set(observation.application_fact_ids) - set(by_id)
         if missing:
@@ -169,4 +180,6 @@ def load_real_read_only_dataset(*, fact_store_path, journal_path, now) -> Applic
         artifacts,
         count,
         change_class,
+        None if not observations else observation.observation_id,
+        None if not observations else observation.portfolio_snapshot.portfolio_snapshot_id,
     )

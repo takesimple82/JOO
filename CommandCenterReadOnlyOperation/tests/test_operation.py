@@ -170,6 +170,86 @@ class RealReadOnlyOperationTests(unittest.TestCase):
         self.assertEqual(second.appended_fact_count, 0)
         self.assertEqual(second.observation, first.observation)
 
+    def test_partially_published_facts_never_replace_valid_observation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _adapter, first = self.execute(directory, "published")
+            facts_path = Path(directory) / "facts.sqlite3"
+            main_journal = Path(directory) / "journal.sqlite3"
+            side_journal = Path(directory) / "interrupted-journal.sqlite3"
+            run_real_read_only_observation(
+                adapter=FakeReadAdapter(NOW + timedelta(minutes=1)),
+                binding=binding(), config=config(), fact_store_path=facts_path,
+                journal_path=side_journal,
+                observation_id="observation-unpublished",
+                now=NOW + timedelta(minutes=1),
+            )
+            dataset = load_real_read_only_dataset(
+                fact_store_path=facts_path, journal_path=main_journal,
+                now=NOW + timedelta(minutes=1),
+            )
+        self.assertEqual(dataset.active_observation_id, "observation-published")
+        self.assertEqual(
+            tuple(x.fact_id for x in dataset.facts),
+            first.observation.application_fact_ids,
+        )
+        self.assertNotIn("observation-unpublished", repr(dataset.facts))
+
+    def test_partially_published_facts_without_observation_remain_unavailable(self):
+        from InvestmentDecisionVerticalSlice.sqlite_journal import DecisionJournal
+
+        with tempfile.TemporaryDirectory() as directory:
+            facts_path = Path(directory) / "facts.sqlite3"
+            side_journal = Path(directory) / "interrupted-journal.sqlite3"
+            empty_journal = Path(directory) / "journal.sqlite3"
+            run_real_read_only_observation(
+                adapter=FakeReadAdapter(NOW), binding=binding(), config=config(),
+                fact_store_path=facts_path, journal_path=side_journal,
+                observation_id="observation-unpublished", now=NOW,
+            )
+            DecisionJournal(empty_journal).close()
+            dataset = load_real_read_only_dataset(
+                fact_store_path=facts_path, journal_path=empty_journal, now=NOW,
+            )
+            view = build_command_center_view(dataset)
+        self.assertIsNone(dataset.active_observation_id)
+        self.assertEqual(dataset.facts, ())
+        self.assertEqual(view.position_count, 0)
+        self.assertIsNone(view.portfolio_value_krw)
+
+    def test_latest_journal_sequence_wins_equal_or_skewed_timestamps(self):
+        from InvestmentDecisionVerticalSlice.models import JournalRecordKind
+        from InvestmentDecisionVerticalSlice.sqlite_journal import DecisionJournal
+        from ProductionIntegration.journal import ProductionJournal
+
+        for created_at in (NOW, NOW - timedelta(minutes=1)):
+            with self.subTest(created_at=created_at), tempfile.TemporaryDirectory() as directory:
+                _adapter, first = self.execute(directory, "first")
+                journal_path = Path(directory) / "journal.sqlite3"
+                journal = DecisionJournal(journal_path)
+                later = replace(
+                    first.observation,
+                    observation_id="observation-later-sequence",
+                    created_at=created_at,
+                    change_class="NO_CHANGE",
+                )
+                ProductionJournal(journal).append_artifact(
+                    JournalRecordKind.READ_ONLY_OBSERVATION,
+                    later.observation_id,
+                    later,
+                    created_at,
+                    later.observation_id,
+                )
+                journal.close()
+                dataset = load_real_read_only_dataset(
+                    fact_store_path=Path(directory) / "facts.sqlite3",
+                    journal_path=journal_path,
+                    now=NOW,
+                )
+            self.assertEqual(
+                dataset.active_observation_id, "observation-later-sequence"
+            )
+            self.assertEqual(dataset.change_class, "NO_CHANGE")
+
     def test_blank_currency_requires_explicit_domestic_binding(self):
         bad_config = replace(config(), domestic_bindings=())
         with tempfile.TemporaryDirectory() as directory:

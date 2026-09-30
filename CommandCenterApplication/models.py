@@ -16,6 +16,7 @@ class JournalArtifact:
     kind: str
     created_at: datetime
     artifact: object
+    sequence: int | None = None
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,8 @@ class ApplicationDataset:
     artifacts: tuple[JournalArtifact, ...]
     journal_record_count: int
     change_class: str | None = None
+    active_observation_id: str | None = None
+    active_portfolio_snapshot_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -92,6 +95,16 @@ class CioView:
     evidence_ids: tuple[str, ...]
     decision_id: str | None
     decision_timestamp: str | None
+
+
+@dataclass(frozen=True)
+class AiPipelineView:
+    observation_id: str | None
+    evidence_package_id: str | None
+    research_state: str
+    committee_state: str
+    contradiction_state: str
+    blocker_codes: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -179,6 +192,7 @@ class CommandCenterView:
     foreign_exclusions: tuple[ExclusionView, ...]
     capital: CapitalView
     change: ChangeView
+    ai_pipeline: AiPipelineView
     cio: CioView
     expected_values: tuple[ExpectedValueView, ...]
     allocation: AllocationView

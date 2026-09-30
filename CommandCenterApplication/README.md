@@ -30,6 +30,19 @@ python3 -m CommandCenterApplication --mode REAL_READ_ONLY \
 Open `http://127.0.0.1:8765`. The server binds only to loopback and exposes
 GET/HEAD routes. POST, PUT, PATCH, and DELETE are rejected.
 
+After a fresh factual observation, record the Phase 8 evidence-bound AI
+availability state with the separate producer before starting this viewer:
+
+```console
+python3 -m CommandCenterAiDecisionOperation \
+  --fact-store /absolute/path/facts.sqlite3 \
+  --journal /absolute/path/decision.sqlite3
+```
+
+Without an authorized external research provider, the API truthfully exposes
+`RESEARCH_UNAVAILABLE`, `COMMITTEE_UNAVAILABLE`, blocked CIO, unavailable EV
+and allocation, and `NOT_ISSUED` IHA. It never substitutes fixture research.
+
 ## Authority boundary
 
 - position quantity comes only from canonical `SSQM2952` position facts;
