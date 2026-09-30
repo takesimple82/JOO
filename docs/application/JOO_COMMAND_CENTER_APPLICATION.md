@@ -20,6 +20,11 @@ permission.
 verifies FactStore record integrity, supersession ordering, and the
 DecisionJournal hash chain before projection.
 
+The real producer is a separate process documented in
+`CommandCenterReadOnlyOperation/README.md`. Its journaled observation is the
+publication boundary: incomplete FactStore-only writes cannot silently become
+the application's current portfolio view.
+
 This slice adds no public-network deployment, authentication system, broker
 mutation, approval action, TEA issuance, portfolio automation, or replacement
 for durable production ownership. Those remain outside this application's

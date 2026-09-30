@@ -14,6 +14,8 @@ from FactStore.validation.validators import (
 )
 from InvestmentDecisionVerticalSlice.models import JournalRecordKind
 from OperationalCioCycle.codec import decode
+from CommandCenterReadOnlyOperation.models import ReadOnlyObservation
+from CommandCenterReadOnlyOperation.validation import validate_read_only_observation
 
 from CommandCenterApplication.models import (
     ApplicationDataset,
@@ -137,6 +139,28 @@ def load_real_read_only_dataset(*, fact_store_path, journal_path, now) -> Applic
         raise ValueError("now must be UTC")
     facts = read_verified_facts(fact_store_path)
     artifacts, count = read_verified_journal(journal_path)
+    observations = tuple(
+        item.artifact for item in artifacts
+        if type(item.artifact) is ReadOnlyObservation
+    )
+    change_class = None
+    phase7_facts = any(
+        x.fact_id.startswith((
+            "raw-fact:", "fact-position:", "fact-position-value:",
+        ))
+        for x in facts
+    )
+    if phase7_facts and not observations:
+        raise ValueError("Phase 7 facts have no published observation")
+    if observations:
+        observation = max(observations, key=lambda x: x.created_at)
+        validate_read_only_observation(observation)
+        by_id = {x.fact_id: x for x in facts}
+        missing = set(observation.application_fact_ids) - set(by_id)
+        if missing:
+            raise ValueError("read-only observation references missing facts")
+        facts = tuple(by_id[x] for x in observation.application_fact_ids)
+        change_class = observation.change_class
     return ApplicationDataset(
         MODE_REAL_READ_ONLY,
         "Verified local FactStore + DecisionJournal (read-only)",
@@ -144,4 +168,5 @@ def load_real_read_only_dataset(*, fact_store_path, journal_path, now) -> Applic
         facts,
         artifacts,
         count,
+        change_class,
     )

@@ -29,6 +29,7 @@ _MODULES = (
     "CapitalAllocationCycle.models", "KbCapitalFactAuthority.models",
     "BrokerExecutionCycle.models",
     "CommandCenterRuntime.models",
+    "CommandCenterReadOnlyOperation.models",
 )
 _TYPES = {}
 for _name in _MODULES:

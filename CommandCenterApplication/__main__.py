@@ -29,6 +29,11 @@ def main():
         dataset = build_fixture_dataset(now=now)
     view = build_command_center_view(dataset)
     print(f"JOO Command Center: http://{args.host}:{args.port} [{view.mode_label}]")
+    if args.mode == MODE_REAL_READ_ONLY:
+        print(f"FactStore (read-only): {args.fact_store}")
+        print(f"DecisionJournal (read-only): {args.journal}")
+    print(f"Factual freshness: {view.system_health.factual_freshness}")
+    print("Execution: LIVE BLOCKED (gnl_ac_no1 authority not closed)")
     serve(view=view, host=args.host, port=args.port)
 
 

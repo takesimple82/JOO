@@ -157,6 +157,7 @@ class SystemHealthView:
     factual_freshness: str
     last_factual_refresh: str | None
     fact_store_state: str
+    decision_journal_state: str
     command_center_state: str
     last_successful_cycle: str | None
     attention_state: str

@@ -24,7 +24,7 @@ Run against existing verified stores:
 ```console
 python3 -m CommandCenterApplication --mode REAL_READ_ONLY \
   --fact-store /absolute/path/facts.sqlite3 \
-  --decision-journal /absolute/path/decision.sqlite3
+  --journal /absolute/path/decision.sqlite3
 ```
 
 Open `http://127.0.0.1:8765`. The server binds only to loopback and exposes

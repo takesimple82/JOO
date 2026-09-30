@@ -201,6 +201,7 @@ def build_command_center_view(dataset: ApplicationDataset) -> CommandCenterView:
         Decimal("0"),
     )
     complete_values = all(symbol in value_by_symbol for symbol in active_symbols)
+    authoritative_portfolio_total = bool(quantity_by_symbol) and complete_values
 
     positions = []
     for symbol in sorted(active_symbols):
@@ -237,22 +238,29 @@ def build_command_center_view(dataset: ApplicationDataset) -> CommandCenterView:
             None if valuation_fact is None else _evidence(valuation_fact, VALUATION_AUTHORITY),
         ))
 
-    exclusions = []
-    for kind in EXCLUSION_FACT_KINDS:
-        for fact in by_kind.get(kind, ()):
+    exclusions_by_identity = {}
+    for kind in sorted(EXCLUSION_FACT_KINDS):
+        for fact in sorted(
+            by_kind.get(kind, ()), key=lambda x: (x.collected_at, x.fact_id)
+        ):
             items = fact.payload.get("exclusions")
             if type(items) is not list:
                 raise ValueError("exclusion provenance must contain list")
             for item in items:
                 if type(item) is not dict:
                     raise ValueError("exclusion item must be dict")
-                exclusions.append(ExclusionView(
+                identity = (
                     str(item.get("provider_symbol", "UNAVAILABLE")),
                     str(item.get("position_class", "UNAVAILABLE")),
                     repr(item.get("raw_currency_code", "")),
                     str(item.get("reason", "UNAVAILABLE")),
-                    fact.fact_id,
-                ))
+                )
+                exclusions_by_identity[identity] = ExclusionView(
+                    *identity, fact.fact_id,
+                )
+    exclusions = tuple(
+        exclusions_by_identity[key] for key in sorted(exclusions_by_identity)
+    )
 
     cash_fact = _latest(tuple(by_kind.get(FACT_KIND_ORDERABLE_CASH, ())), "collected_at")
     cash = None
@@ -414,6 +422,7 @@ def build_command_center_view(dataset: ApplicationDataset) -> CommandCenterView:
         freshness,
         None if last_refresh is None else last_refresh.isoformat(),
         "VERIFIED" if dataset.facts else "EMPTY",
+        "VERIFIED" if dataset.journal_record_count else "VERIFIED_EMPTY",
         "UNAVAILABLE" if checkpoint is None else checkpoint.status,
         None if checkpoint is None else checkpoint.created_at.isoformat(),
         "ATTENTION_REQUIRED" if unresolved_attention else "CLEAR",
@@ -428,13 +437,13 @@ def build_command_center_view(dataset: ApplicationDataset) -> CommandCenterView:
         "FIXTURE / DEMO — NOT REAL DATA" if dataset.mode == MODE_FIXTURE else "REAL KB READ-ONLY",
         dataset.source_label,
         dataset.generated_at.isoformat(),
-        _money(total_value) if complete_values else None,
+        _money(total_value) if authoritative_portfolio_total else None,
         len(positions),
         tuple(positions),
-        tuple(exclusions),
+        exclusions,
         CapitalView(
             _money(cash),
-            _money(total_value) if complete_values else None,
+            _money(total_value) if authoritative_portfolio_total else None,
             _money(cash),
             format(HIP_V1_EXPLICIT_RESERVE_KRW, "f"),
             format(HIP_V1_MAX_POSITION_MARKET_VALUE_KRW, "f"),
