@@ -132,6 +132,38 @@ def _walk(value):
             yield from _walk(getattr(value, field))
 
 
+def _real_cio_decision_is_evidence_bound(dataset, source, decision) -> bool:
+    """A REAL CIO is current only inside the journal record that also holds its evidence.
+
+    Snapshot identity alone is not committee or research evidence. A bare
+    CioDecisionRecord appended under OPERATIONAL_CIO_CYCLE must not become an
+    actionable current decision.
+    """
+    output_ids = decision.semantic_output_ids
+    bundle_id = decision.evidence_bundle_id
+    if (
+        type(output_ids) is not tuple or not output_ids
+        or type(bundle_id) is not str or bundle_id.strip() == ""
+        or any(type(item) is not str or item.strip() == "" for item in output_ids)
+    ):
+        return False
+    found_outputs = set()
+    found_bundles = set()
+    for row in dataset.artifacts:
+        if row.record_id != source.record_id:
+            continue
+        for item in _walk(row.artifact):
+            if item is decision:
+                continue
+            output_id = getattr(item, "output_id", None)
+            if type(output_id) is str:
+                found_outputs.add(output_id)
+            item_bundle_id = getattr(item, "bundle_id", None)
+            if type(item_bundle_id) is str:
+                found_bundles.add(item_bundle_id)
+    return set(output_ids) <= found_outputs and bundle_id in found_bundles
+
+
 def _latest(values: tuple, timestamp_field: str | None = None):
     if not values:
         return None
@@ -298,6 +330,7 @@ def build_command_center_view(dataset: ApplicationDataset) -> CommandCenterView:
             row for row in decision_rows
             if row[0].kind == JournalRecordKind.OPERATIONAL_CIO_CYCLE.value
             and row[1].snapshot_id == dataset.active_portfolio_snapshot_id
+            and _real_cio_decision_is_evidence_bound(dataset, row[0], row[1])
         )
     decision_row = max(
         decision_rows,

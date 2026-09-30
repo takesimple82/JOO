@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -142,6 +143,40 @@ class AiDecisionOperationTests(unittest.TestCase):
         self.assertEqual(view.cio.state, "UNAVAILABLE")
         self.assertEqual(view.expected_values, ())
         self.assertEqual(view.allocation.state, "UNAVAILABLE")
+
+    def test_standalone_operational_cio_cannot_become_current_authority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            facts, journal_path, observation = self.stores(directory)
+            fixture_decision = next(
+                row.artifact for row in build_fixture_dataset().artifacts
+                if row.kind == JournalRecordKind.CIO_DECISION.value
+            )
+            injected = replace(
+                fixture_decision,
+                snapshot_id=observation.portfolio_snapshot.portfolio_snapshot_id,
+                decision_id="standalone-operational-cio",
+                unresolved_reasons=(),
+                executable=True,
+            )
+            journal = DecisionJournal(journal_path)
+            ProductionJournal(journal).append_artifact(
+                JournalRecordKind.OPERATIONAL_CIO_CYCLE, injected.decision_id,
+                injected, NOW + timedelta(seconds=1), observation.observation_id,
+            )
+            journal.close()
+            view = build_command_center_view(load_real_read_only_dataset(
+                fact_store_path=facts, journal_path=journal_path,
+                now=NOW + timedelta(seconds=1),
+            ))
+        self.assertEqual(view.cio.state, "UNAVAILABLE")
+        self.assertIsNone(view.cio.decision_id)
+        self.assertEqual(view.ai_pipeline.research_state, "UNAVAILABLE")
+        self.assertEqual(view.ai_pipeline.committee_state, "UNAVAILABLE")
+        self.assertNotEqual(view.ai_pipeline.contradiction_state, "RESOLVED")
+        self.assertEqual(view.expected_values, ())
+        self.assertEqual(view.allocation.state, "UNAVAILABLE")
+        self.assertEqual(view.investment_approval.state, "NOT_ISSUED")
+        self.assertFalse(view.execution.live_enabled)
 
     def test_public_json_redacts_account_and_secrets(self):
         with tempfile.TemporaryDirectory() as directory:
